@@ -10,6 +10,8 @@
   --muted: #4b5160;
   --border: rgb(11 12 15 / 0.12);
   --accent: #047857;
+  /* Segundo tono para degradados (contraste AA con texto blanco igual que --accent). */
+  --accent-2: #0e7490;
   --accent-contrast: #ffffff;
   --accent-soft: #d1fae5;
   --danger: #b91c1c;
@@ -27,6 +29,7 @@
     --muted: #b4b9c4;
     --border: rgb(255 255 255 / 0.12);
     --accent: #34d399;
+    --accent-2: #22d3ee;
     --accent-contrast: #052e1f;
     --accent-soft: #0b3b2b;
     --danger: #f87171;
@@ -44,6 +47,7 @@
   --color-muted: var(--muted);
   --color-border: var(--border);
   --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
   --color-accent-contrast: var(--accent-contrast);
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);

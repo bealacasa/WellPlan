@@ -3,7 +3,13 @@
  * sincronización (src/sync) los traduce a snake_case para Postgres.
  */
 
-export const EXERCISE_TYPES = ["maquina", "peso_libre", "peso_corporal", "estiramiento"] as const;
+export const EXERCISE_TYPES = [
+  "maquina",
+  "peso_libre",
+  "peso_corporal",
+  "estiramiento",
+  "clase",
+] as const;
 export type ExerciseType = (typeof EXERCISE_TYPES)[number];
 
 /** Campos comunes a todo lo que se sincroniza con Supabase. */

@@ -95,12 +95,14 @@ function DayCard({
 
   return (
     <li
-      className={`rounded-2xl border bg-surface p-4 ${isToday ? "border-accent" : "border-border"}`}
+      className={`rounded-3xl bg-surface p-4 shadow-sm ${
+        isToday ? "border-2 border-accent shadow-lg shadow-accent/20" : "border border-border"
+      }`}
     >
       <h3 className="flex items-center gap-2 text-lg font-semibold capitalize">
         {name}
         {isToday && (
-          <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-bold normal-case text-accent-contrast">
+          <span className="rounded-full bg-linear-to-br from-accent to-accent-2 px-2.5 py-0.5 text-xs font-bold normal-case text-accent-contrast">
             Hoy
           </span>
         )}
@@ -112,7 +114,7 @@ function DayCard({
           {entries.map(({ entryId, session }) => (
             <li
               key={entryId}
-              className="flex items-center gap-2 rounded-xl bg-accent-soft py-1 pl-3 pr-1"
+              className="flex items-center gap-2 rounded-2xl bg-accent-soft py-1 pl-3 pr-1 font-bold"
             >
               <Link
                 to={`/sesiones/${session.id}`}

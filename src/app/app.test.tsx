@@ -17,7 +17,7 @@ describe("navegación", () => {
   it("muestra Hoy y cambia de pestaña", async () => {
     const memory = createMemoryRouter(router.routes, { initialEntries: ["/"] });
     render(<RouterProvider router={memory} />);
-    expect(screen.getByRole("heading", { name: "Hoy", level: 1 })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: /^Hoy/, level: 1 })).toBeTruthy();
 
     await userEvent.click(screen.getByRole("link", { name: "Ajustes" }));
     expect(await screen.findByRole("heading", { name: "Ajustes", level: 1 })).toBeTruthy();

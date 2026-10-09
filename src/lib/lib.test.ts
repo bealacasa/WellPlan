@@ -78,10 +78,15 @@ describe("validación", () => {
 
 describe("etiquetas", () => {
   it("objetivo y fechas", () => {
-    expect(targetLabel({ sets: 3, reps: 12, durationSec: null, targetKg: 22.5 })).toBe(
-      "3 × 12 · 22,5 kg",
-    );
-    expect(targetLabel({ sets: 2, reps: null, durationSec: 30, targetKg: null })).toBe("2 × 30 s");
+    expect(
+      targetLabel({ type: "maquina", sets: 3, reps: 12, durationSec: null, targetKg: 22.5 }),
+    ).toBe("3 × 12 · 22,5 kg");
+    expect(
+      targetLabel({ type: "estiramiento", sets: 2, reps: null, durationSec: 30, targetKg: null }),
+    ).toBe("2 × 30 s");
+    expect(
+      targetLabel({ type: "clase", sets: 1, reps: null, durationSec: 3600, targetKg: null }),
+    ).toBe("60 min");
     expect(shortDate("2026-10-09")).toMatch(/^9 oct/);
   });
 });

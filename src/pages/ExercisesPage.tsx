@@ -1,6 +1,7 @@
 import { useDeferredValue, useState } from "react";
 import { Link } from "react-router";
 import { ExercisePhoto } from "@/components/ExercisePhoto";
+import { TypeChip } from "@/components/typeStyle";
 import { EmptyState, PageHeader, buttonPrimary, inputClass } from "@/components/ui";
 import { useExercises } from "@/db/repositories/exercises";
 import { EXERCISE_TYPE_LABEL, targetLabel } from "@/lib/labels";
@@ -50,18 +51,20 @@ export function ExercisesPage() {
             <li key={e.id}>
               <Link
                 to={`/ejercicios/${e.id}`}
-                className="flex min-h-20 items-center gap-3 rounded-2xl border border-border bg-surface p-2 pr-4 active:scale-[0.99]"
+                className="flex min-h-20 items-center gap-3 rounded-3xl border border-border bg-surface p-2 pr-4 shadow-sm active:scale-[0.99]"
               >
                 <ExercisePhoto
                   photoId={e.photoId}
+                  type={e.type}
                   variant="thumb"
                   alt=""
                   className="size-16 shrink-0 rounded-xl"
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-lg font-semibold">{e.name}</span>
-                  <span className="block text-sm text-muted">
-                    {EXERCISE_TYPE_LABEL[e.type]} · {targetLabel(e)}
+                  <span className="block truncate text-lg font-bold">{e.name}</span>
+                  <span className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
+                    <TypeChip type={e.type} label={EXERCISE_TYPE_LABEL[e.type]} />
+                    {targetLabel(e)}
                   </span>
                 </span>
               </Link>

@@ -4,6 +4,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { KgField } from "@/components/KgField";
 import { NumberStepper } from "@/components/NumberStepper";
 import { PhotoPicker } from "@/components/PhotoPicker";
+import { TYPE_STYLE } from "@/components/typeStyle";
 import { PageHeader, buttonPrimary, inputClass } from "@/components/ui";
 import {
   createExercise,
@@ -14,7 +15,7 @@ import {
 import { usePhotoUrl } from "@/db/repositories/photos";
 import { EXERCISE_TYPES, type Exercise, type ExerciseType } from "@/db/types";
 import type { ProcessedImage } from "@/lib/image";
-import { EXERCISE_TYPE_LABEL, usesDuration, usesKg } from "@/lib/labels";
+import { EXERCISE_TYPE_LABEL, isClass, usesDuration, usesKg } from "@/lib/labels";
 import { formatKg, parseKg } from "@/lib/numbers";
 import { exerciseInputSchema } from "@/lib/validation";
 
@@ -47,6 +48,10 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
   const [sets, setSets] = useState(exercise?.sets ?? 3);
   const [reps, setReps] = useState(exercise?.reps ?? 12);
   const [durationSec, setDurationSec] = useState(exercise?.durationSec ?? 30);
+  // Las clases se editan en minutos (se guardan en segundos, como el resto).
+  const [classMinutes, setClassMinutes] = useState(
+    exercise?.type === "clase" && exercise.durationSec ? Math.round(exercise.durationSec / 60) : 60,
+  );
   const [targetKg, setTargetKg] = useState(
     exercise?.targetKg != null ? formatKg(exercise.targetKg) : "",
   );
@@ -65,9 +70,9 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
       name,
       type,
       physioNotes,
-      sets,
+      sets: isClass(type) ? 1 : sets,
       reps: usesDuration(type) ? null : reps,
-      durationSec: usesDuration(type) ? durationSec : null,
+      durationSec: isClass(type) ? classMinutes * 60 : usesDuration(type) ? durationSec : null,
       targetKg: usesKg(type) ? kg : null,
     });
     if (!parsed.success) {
@@ -126,7 +131,7 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
             {EXERCISE_TYPES.map((t) => (
               <label
                 key={t}
-                className="flex min-h-12 cursor-pointer items-center justify-center rounded-xl border border-border bg-surface px-3 text-center font-semibold has-[:checked]:border-accent has-[:checked]:bg-accent-soft"
+                className="flex min-h-14 cursor-pointer items-center gap-2 rounded-2xl border-2 border-border bg-surface px-3 font-bold has-[:checked]:border-accent has-[:checked]:bg-accent-soft"
               >
                 <input
                   type="radio"
@@ -136,6 +141,7 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
                   onChange={() => setType(t)}
                   className="sr-only"
                 />
+                <TypeTile type={t} />
                 {EXERCISE_TYPE_LABEL[t]}
               </label>
             ))}
@@ -160,15 +166,26 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <NumberStepper
-            id="sets"
-            label="Series"
-            value={sets}
-            onChange={setSets}
-            min={1}
-            max={20}
-          />
-          {usesDuration(type) ? (
+          {isClass(type) ? (
+            <NumberStepper
+              id="class-minutes"
+              label="Duración (minutos)"
+              value={classMinutes}
+              onChange={setClassMinutes}
+              min={5}
+              max={180}
+            />
+          ) : (
+            <NumberStepper
+              id="sets"
+              label="Series"
+              value={sets}
+              onChange={setSets}
+              min={1}
+              max={20}
+            />
+          )}
+          {isClass(type) ? null : usesDuration(type) ? (
             <NumberStepper
               id="duration"
               label="Duración (segundos)"
@@ -219,5 +236,17 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
       </form>
       {dialog}
     </>
+  );
+}
+
+function TypeTile({ type }: { type: ExerciseType }) {
+  const { Icon, tile } = TYPE_STYLE[type];
+  return (
+    <span
+      aria-hidden="true"
+      className={`grid size-9 shrink-0 place-items-center rounded-xl ${tile}`}
+    >
+      <Icon className="size-5" />
+    </span>
   );
 }

@@ -12,7 +12,7 @@ export const exerciseInputSchema = z
     physioNotes: z.string().trim().max(4000, "Máximo 4000 caracteres."),
     sets: z.number().int().min(1, "Mínimo 1 serie.").max(20, "Máximo 20 series."),
     reps: optionalInt(1, 200),
-    durationSec: optionalInt(1, 3600),
+    durationSec: optionalInt(1, 10800),
     targetKg: z.number().min(0).max(MAX_KG).nullable(),
   })
   .refine((e) => e.reps !== null || e.durationSec !== null, {

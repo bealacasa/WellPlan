@@ -30,13 +30,23 @@ export function Layout() {
                 to={to}
                 end={end}
                 className={({ isActive }) =>
-                  `flex min-h-16 flex-col items-center justify-center gap-0.5 text-xs font-semibold ${
+                  `flex min-h-16 flex-col items-center justify-center gap-0.5 text-xs font-bold ${
                     isActive ? "text-accent" : "text-muted"
                   }`
                 }
               >
-                <Icon className="size-7" />
-                {label}
+                {({ isActive }) => (
+                  <>
+                    <span
+                      className={`grid h-8 w-14 place-items-center rounded-full transition-colors ${
+                        isActive ? "bg-accent-soft" : ""
+                      }`}
+                    >
+                      <Icon className="size-6" />
+                    </span>
+                    {label}
+                  </>
+                )}
               </NavLink>
             </li>
           ))}

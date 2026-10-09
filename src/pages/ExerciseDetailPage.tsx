@@ -10,7 +10,7 @@ import { useExercise } from "@/db/repositories/exercises";
 import { addLog, deleteLog, useLogs } from "@/db/repositories/weightLogs";
 import type { Exercise, WeightLog } from "@/db/types";
 import { localDateKey } from "@/lib/dates";
-import { EXERCISE_TYPE_LABEL, shortDate, targetLabel, usesKg } from "@/lib/labels";
+import { EXERCISE_TYPE_LABEL, isClass, shortDate, targetLabel, usesKg } from "@/lib/labels";
 import { formatKg, parseKg } from "@/lib/numbers";
 
 export function ExerciseDetailPage() {
@@ -58,6 +58,7 @@ export function ExerciseDetailPage() {
       </Link>
       <ExercisePhoto
         photoId={exercise.photoId}
+        type={exercise.type}
         variant="full"
         alt={`Máquina o posición de ${exercise.name}`}
         className="mb-4 aspect-[4/3] w-full rounded-3xl"
@@ -200,14 +201,16 @@ function QuickLog({
           />
         )}
         <div className="grid grid-cols-2 gap-3">
-          <NumberStepper
-            id="log-sets"
-            label="Series"
-            value={sets}
-            onChange={setSets}
-            min={1}
-            max={20}
-          />
+          {!isClass(exercise.type) && (
+            <NumberStepper
+              id="log-sets"
+              label="Series"
+              value={sets}
+              onChange={setSets}
+              min={1}
+              max={20}
+            />
+          )}
           {!exercise.durationSec && (
             <NumberStepper
               id="log-reps"
@@ -238,7 +241,7 @@ function QuickLog({
           </p>
         )}
         <button type="submit" disabled={saving} className={buttonPrimary}>
-          {saving ? "Guardando…" : "Guardar"}
+          {saving ? "Guardando…" : isClass(exercise.type) ? "Marcar como hecha" : "Guardar"}
         </button>
       </form>
     </Card>

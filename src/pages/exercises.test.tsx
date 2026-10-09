@@ -50,7 +50,10 @@ describe("flujo de ejercicios", () => {
     expect(kg.value).toBe("22,5");
     await user.click(screen.getByRole("button", { name: "Guardar" }));
 
-    expect(await screen.findByText("✓ Guardado: 22,5 kg")).toBeTruthy();
+    // El aviso "✓ Guardado" se oculta a los 3 s: comprobamos lo que persiste (BD e historial).
+    await vi.waitFor(async () => expect((await db.weightLogs.toArray())[0]?.kg).toBe(22.5), {
+      timeout: 5000,
+    });
     const history = await screen.findByRole("heading", { name: "Historial" });
     expect(within(history.parentElement!).getByText(/22,5 kg · 3 × 12/)).toBeTruthy();
     // El siguiente registro se rellena con el último peso usado.
@@ -91,5 +94,24 @@ describe("flujo de ejercicios", () => {
       within(await screen.findByRole("dialog")).getByRole("button", { name: "Borrar ejercicio" }),
     );
     expect(await screen.findByText("Todavía no hay ejercicios")).toBeTruthy();
+  });
+});
+
+describe("tipo clase", () => {
+  it("se mide en minutos y sin series, y se registra como hecha", async () => {
+    const user = userEvent.setup();
+    renderAt("/ejercicios/nuevo");
+    await user.type(await screen.findByLabelText("Nombre"), "Pilates");
+    await user.click(screen.getByLabelText("Clase"));
+    expect(screen.queryByLabelText("Series")).toBeNull();
+    expect((screen.getByLabelText("Duración (minutos)") as HTMLInputElement).value).toBe("60");
+    await user.click(screen.getByRole("button", { name: "Guardar ejercicio" }));
+
+    expect(await screen.findByText(/Clase · 60 min/)).toBeTruthy();
+    expect(screen.queryByLabelText("Peso")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Marcar como hecha" }));
+    await vi.waitFor(async () => expect(await db.weightLogs.count()).toBe(1), { timeout: 5000 });
+    const stored = (await db.exercises.toArray())[0]!;
+    expect(stored).toMatchObject({ type: "clase", sets: 1, durationSec: 3600, reps: null });
   });
 });
