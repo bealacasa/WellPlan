@@ -4,7 +4,7 @@ import { quickLogInput } from "@/lib/progression";
 import { weightLogInputSchema, type WeightLogInput } from "@/lib/validation";
 import { notifyLocalChange } from "../changes";
 import { db } from "../database";
-import { createRecord, isAlive, tombstone } from "../records";
+import { clock, createRecord, isAlive, tombstone } from "../records";
 import type { Exercise, WeightLog } from "../types";
 
 /** Más reciente primero (por fecha y, dentro del mismo día, por hora de registro). */
@@ -50,6 +50,27 @@ export async function addLog(exerciseId: string, input: WeightLogInput): Promise
 export async function quickLog(exercise: Exercise, date: string): Promise<string | null> {
   const input = quickLogInput(exercise, await getLastLog(exercise.id));
   return input ? addLog(exercise.id, { ...input, date }) : null;
+}
+
+/** Desmarca un ejercicio hecho ese día (borra sus registros). Devuelve los ids, para deshacer. */
+export async function unmarkDay(exerciseId: string, date: string): Promise<string[]> {
+  const logs = (
+    await db.weightLogs.where("[exerciseId+date]").equals([exerciseId, date]).toArray()
+  ).filter(isAlive);
+  await db.transaction("rw", db.weightLogs, async () => {
+    for (const log of logs) await db.weightLogs.update(log.id, tombstone<WeightLog>());
+  });
+  notifyLocalChange();
+  return logs.map((l) => l.id);
+}
+
+/** Recupera registros borrados (para "Deshacer"). */
+export async function restoreLogs(ids: string[]): Promise<void> {
+  await db.transaction("rw", db.weightLogs, async () => {
+    const changes: Partial<WeightLog> = { deletedAt: null, updatedAt: clock.now(), dirty: 1 };
+    for (const id of ids) await db.weightLogs.update(id, changes);
+  });
+  notifyLocalChange();
 }
 
 export async function deleteLog(id: string): Promise<void> {

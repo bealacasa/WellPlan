@@ -93,3 +93,12 @@ export function logSummary(
   const work = log.durationSec !== null ? `${log.durationSec} s` : (log.reps ?? "—");
   return `${kg}${log.sets} × ${work}`;
 }
+
+/** "Sensación 7/10 · molestia en rodilla" (o null si no se valoró nada). */
+export function feelingSummary(log: Pick<WeightLog, "feeling" | "painArea">): string | null {
+  const parts = [
+    log.feeling !== null ? `Sensación ${log.feeling}/10` : null,
+    log.painArea !== null ? `molestia en ${log.painArea.toLowerCase()}` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}

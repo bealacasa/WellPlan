@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { Card, EmptyState, PageHeader } from "@/components/ui";
+import { Card, EmptyState, PageHeader, buttonSecondary } from "@/components/ui";
 import {
   streakLabel,
   useProgress,
@@ -22,6 +22,9 @@ export function ProgressPage() {
         ← Hoy
       </Link>
       <PageHeader title="Progreso" subtitle="Cuánto entrenas y si cumples tu plan." />
+      <Link to="/progreso/informe" className={`${buttonSecondary} mb-4 w-full`}>
+        Informe para el fisio
+      </Link>
       {nothingYet ? (
         <EmptyState title="Aún no hay registros">
           <p>Cuando registres ejercicios o marques clases como hechas, verás aquí tu progreso.</p>

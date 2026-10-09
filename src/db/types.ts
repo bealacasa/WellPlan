@@ -65,6 +65,10 @@ export type WeightLog = SyncFields & {
   distanceKm: number | null;
   durationSec: number | null;
   effort: number | null;
+  /** "¿Cómo te has encontrado?": 0 (fatal) … 10 (perfecto). Null = sin valorar. */
+  feeling: number | null;
+  /** Zona con molestias (p. ej. "Rodilla"). Null = ninguna. */
+  painArea: string | null;
   note: string | null;
 };
 

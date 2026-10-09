@@ -17,6 +17,10 @@ export const router = createBrowserRouter(
           lazy: async () => ({ Component: (await import("@/pages/ProgressPage")).ProgressPage }),
         },
         {
+          path: "progreso/informe",
+          lazy: async () => ({ Component: (await import("@/pages/ReportPage")).ReportPage }),
+        },
+        {
           path: "plan",
           lazy: async () => ({ Component: (await import("@/pages/PlanPage")).PlanPage }),
         },

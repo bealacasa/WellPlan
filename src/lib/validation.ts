@@ -46,6 +46,8 @@ export const weightLogInputSchema = z.object({
   distanceKm: z.number().min(0).max(MAX_KM).nullable().default(null),
   durationSec: optionalInt(1, 86400).default(null),
   effort: optionalInt(1, 10).default(null),
+  feeling: optionalInt(0, 10).default(null),
+  painArea: z.string().trim().min(1).max(40).nullable().default(null),
   note: z
     .string()
     .trim()

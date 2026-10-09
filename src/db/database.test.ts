@@ -72,6 +72,8 @@ describe("esquema Dexie", () => {
         distanceKm: null,
         durationSec: null,
         effort: null,
+        feeling: null,
+        painArea: null,
         note: null,
       });
     await db.weightLogs.bulkAdd([

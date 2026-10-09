@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ExercisePhoto } from "@/components/ExercisePhoto";
+import { FeelingField } from "@/components/FeelingField";
 import { KgField } from "@/components/KgField";
 import { NumberStepper } from "@/components/NumberStepper";
 import { WeightChart } from "@/components/WeightChart";
@@ -10,9 +11,10 @@ import { useExercise } from "@/db/repositories/exercises";
 import { addLog, deleteLog, useLogs } from "@/db/repositories/weightLogs";
 import type { Exercise, WeightLog } from "@/db/types";
 import { localDateKey } from "@/lib/dates";
-import { suggestNextKg } from "@/lib/progression";
+import { hadDiscomfort, suggestNextKg, worseningFeeling } from "@/lib/progression";
 import {
   EXERCISE_TYPE_LABEL,
+  feelingSummary,
   isCardio,
   isClass,
   logSummary,
@@ -107,6 +109,7 @@ export function ExerciseDetailPage() {
         exercise={exercise}
         last={logs[0] ?? null}
         suggestion={suggestNextKg(exercise, logs)}
+        worsening={worseningFeeling(logs)}
         onSaved={setSaved}
       />
       {saved && (
@@ -134,6 +137,13 @@ export function ExerciseDetailPage() {
                   <span className="font-semibold tabular-nums">
                     {logSummary(log, exercise.type)}
                   </span>
+                  {feelingSummary(log) && (
+                    <span
+                      className={`block text-sm ${hadDiscomfort(log) ? "font-semibold text-danger" : "text-muted"}`}
+                    >
+                      {feelingSummary(log)}
+                    </span>
+                  )}
                   {log.note && <span className="block text-sm text-muted">{log.note}</span>}
                 </span>
                 <button
@@ -163,6 +173,8 @@ type QuickLogProps = {
   last: WeightLog | null;
   /** Peso sugerido para subir (sobrecarga progresiva), si toca. */
   suggestion: number | null;
+  /** Sensación de las tres últimas veces si va a peor (de la más antigua a la última). */
+  worsening: number[] | null;
   onSaved: (message: string) => void;
 };
 
@@ -171,6 +183,11 @@ function QuickLog(props: QuickLogProps) {
   return (
     <Card>
       <h2 className="text-lg font-semibold">Registrar hoy</h2>
+      {props.worsening && (
+        <p role="note" className="mt-2 rounded-2xl bg-danger/15 p-3 font-semibold text-danger">
+          Tu sensación va a peor ({props.worsening.join(" → ")}). Coméntalo con tu fisio.
+        </p>
+      )}
       {props.last && (
         <p className="mt-1 text-sm text-muted">
           Última vez ({shortDate(props.last.date)}):{" "}
@@ -228,6 +245,8 @@ function StrengthForm({ exercise, last, suggestion, onSaved }: QuickLogProps) {
   const timed = exercise.durationSec !== null && !isClass(exercise.type);
   const [holdSec, setHoldSec] = useState(last?.durationSec ?? exercise.durationSec ?? 30);
   const [note, setNote] = useState("");
+  const [feeling, setFeeling] = useState<number | null>(null);
+  const [painArea, setPainArea] = useState<string | null>(null);
   const { error, setError, saving, run } = useSave(onSaved);
 
   function save(e: React.FormEvent) {
@@ -244,6 +263,8 @@ function StrengthForm({ exercise, last, suggestion, onSaved }: QuickLogProps) {
         sets,
         reps: exercise.durationSec ? null : reps,
         durationSec: timed ? holdSec : null,
+        feeling,
+        painArea,
         note,
       });
       return value !== null ? `Guardado: ${formatKg(value)} kg` : "Guardado";
@@ -302,6 +323,12 @@ function StrengthForm({ exercise, last, suggestion, onSaved }: QuickLogProps) {
           />
         )}
       </div>
+      <FeelingField
+        feeling={feeling}
+        onFeeling={setFeeling}
+        painArea={painArea}
+        onPainArea={setPainArea}
+      />
       <NoteField value={note} onChange={setNote} />
       {error && (
         <p role="alert" className="font-medium text-danger">
@@ -323,6 +350,8 @@ function CardioForm({ exercise, last, onSaved }: QuickLogProps) {
   const [minutes, setMinutes] = useState(Math.floor(initialSec / 60));
   const [seconds, setSeconds] = useState(initialSec % 60);
   const [effort, setEffort] = useState<number | null>(last?.effort ?? null);
+  const [feeling, setFeeling] = useState<number | null>(null);
+  const [painArea, setPainArea] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const { error, setError, saving, run } = useSave(onSaved);
 
@@ -347,6 +376,8 @@ function CardioForm({ exercise, last, onSaved }: QuickLogProps) {
         distanceKm: distance,
         durationSec: durationSec > 0 ? durationSec : null,
         effort,
+        feeling,
+        painArea,
         note,
       });
       return distance !== null ? `Guardado: ${formatKg(distance)} km` : "Guardado";
@@ -440,6 +471,12 @@ function CardioForm({ exercise, last, onSaved }: QuickLogProps) {
         </div>
       </fieldset>
 
+      <FeelingField
+        feeling={feeling}
+        onFeeling={setFeeling}
+        painArea={painArea}
+        onPainArea={setPainArea}
+      />
       <NoteField value={note} onChange={setNote} />
       {error && (
         <p role="alert" className="font-medium text-danger">

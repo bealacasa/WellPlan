@@ -83,6 +83,19 @@ export class WellPlanDB extends Dexie {
             s.photoId ??= null;
           });
       });
+
+    // v5: sensación (0–10) y zona de dolor en cada registro.
+    this.version(5)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table("weightLogs")
+          .toCollection()
+          .modify((l) => {
+            l.feeling ??= null;
+            l.painArea ??= null;
+          });
+      });
   }
 }
 

@@ -59,6 +59,9 @@ export const weightLogRowSchema = z.object({
   distance_km: numeric.nullable().optional(),
   duration_sec: z.number().int().nullable().optional(),
   effort: z.number().int().min(1).max(10).nullable().optional(),
+  // Migración 0007.
+  feeling: z.number().int().min(0).max(10).nullable().optional(),
+  pain_area: z.string().max(40).nullable().optional(),
   note: z.string().max(500).nullable(),
 });
 
@@ -128,6 +131,8 @@ export const weightLogMapping = {
     distance_km: l.distanceKm,
     duration_sec: l.durationSec,
     effort: l.effort,
+    feeling: l.feeling,
+    pain_area: l.painArea,
     note: l.note,
   }),
   fromRemote: (raw: unknown): WeightLog => {
@@ -142,6 +147,8 @@ export const weightLogMapping = {
       distanceKm: row.distance_km ?? null,
       durationSec: row.duration_sec ?? null,
       effort: row.effort ?? null,
+      feeling: row.feeling ?? null,
+      painArea: row.pain_area ?? null,
       note: row.note,
     };
   },

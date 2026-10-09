@@ -248,7 +248,7 @@ describe("registro rápido desde Hoy", () => {
     expect(screen.getByText("↑ Prueba 22,5 kg")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "Registrar Prensa: 20 kg · 3 × 12" }));
-    expect(await screen.findByLabelText("Hecho hoy")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Hecho hoy. Desmarcar Prensa" })).toBeTruthy();
     const today = (await db.weightLogs.toArray()).filter((l) => l.date > "2026-01-07");
     expect(today).toHaveLength(1);
     expect(today[0]).toMatchObject({ kg: 20, sets: 3, reps: 12 });
@@ -273,5 +273,91 @@ describe("registro rápido desde Hoy", () => {
     );
     await user.click(await screen.findByRole("button", { name: "↑ Probar con 22,5 kg" }));
     expect((screen.getByLabelText("Peso") as HTMLInputElement).value).toBe("22,5");
+  });
+});
+
+describe("desmarcar y molestias en Hoy", () => {
+  it("el ✓ relleno desmarca lo hecho hoy, y se puede deshacer", async () => {
+    const { addToDay } = await import("@/db/repositories/plan");
+    const { addLog } = await import("@/db/repositories/weightLogs");
+    const { isoWeekday, localDateKey } = await import("@/lib/dates");
+    const id = await exercise("Prensa");
+    await addToDay(isoWeekday(new Date()), { exerciseId: id });
+    await addLog(id, { date: localDateKey(new Date()), kg: 20, sets: 3, reps: 12, note: null });
+    const user = userEvent.setup();
+    render(
+      <RouterProvider router={createMemoryRouter(router.routes, { initialEntries: ["/"] })} />,
+    );
+    await user.click(await screen.findByRole("button", { name: "Hecho hoy. Desmarcar Prensa" }));
+    await vi.waitFor(async () =>
+      expect((await db.weightLogs.toArray()).every((l) => l.deletedAt !== null)).toBe(true),
+    );
+    await user.click(await screen.findByRole("button", { name: "Deshacer" }));
+    expect(await screen.findByRole("button", { name: "Hecho hoy. Desmarcar Prensa" })).toBeTruthy();
+    expect((await db.weightLogs.toArray())[0]?.deletedAt).toBeNull();
+  });
+
+  it("si la última vez hubo molestias no hay ✓ rápido y se avisa", async () => {
+    const { addToDay } = await import("@/db/repositories/plan");
+    const { addLog } = await import("@/db/repositories/weightLogs");
+    const { isoWeekday } = await import("@/lib/dates");
+    const id = await exercise("Prensa");
+    await addToDay(isoWeekday(new Date()), { exerciseId: id });
+    await addLog(id, {
+      date: "2026-01-05",
+      kg: 20,
+      sets: 3,
+      reps: 12,
+      feeling: 4,
+      painArea: null,
+      note: null,
+    });
+    render(
+      <RouterProvider router={createMemoryRouter(router.routes, { initialEntries: ["/"] })} />,
+    );
+    expect(await screen.findByText("Molestias la última vez")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Registrar Prensa/ })).toBeNull();
+  });
+
+  it("en la ficha se registra la sensación y la zona, y aparece en el historial", async () => {
+    const id = await exercise("Prensa");
+    const user = userEvent.setup();
+    render(
+      <RouterProvider
+        router={createMemoryRouter(router.routes, { initialEntries: [`/ejercicios/${id}`] })}
+      />,
+    );
+    await user.type(await screen.findByLabelText("Peso"), "20");
+    await user.click(screen.getByRole("button", { name: "Sensación 5 de 10" }));
+    await user.click(screen.getByRole("button", { name: "Rodilla" }));
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    expect(await screen.findByText("Sensación 5/10 · molestia en rodilla")).toBeTruthy();
+    expect((await db.weightLogs.toArray())[0]).toMatchObject({ feeling: 5, painArea: "Rodilla" });
+  });
+});
+
+describe("informe para el fisio", () => {
+  it("se abre desde Progreso y muestra las molestias", async () => {
+    const { addLog } = await import("@/db/repositories/weightLogs");
+    const { localDateKey } = await import("@/lib/dates");
+    const id = await exercise("Prensa");
+    await addLog(id, {
+      date: localDateKey(new Date()),
+      kg: 20,
+      sets: 3,
+      reps: 12,
+      feeling: 3,
+      painArea: "Lumbar",
+      note: null,
+    });
+    const user = userEvent.setup();
+    render(
+      <RouterProvider
+        router={createMemoryRouter(router.routes, { initialEntries: ["/progreso"] })}
+      />,
+    );
+    await user.click(await screen.findByRole("link", { name: "Informe para el fisio" }));
+    expect(await screen.findByText("Sensación 3/10 · molestia en lumbar")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Compartir informe" })).toBeTruthy();
   });
 });

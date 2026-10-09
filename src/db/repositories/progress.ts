@@ -1,5 +1,6 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { addDays, localDateKey, startOfWeek } from "@/lib/dates";
+import { buildReport, type Report } from "@/lib/report";
 import { db } from "../database";
 import { isAlive } from "../records";
 
@@ -103,4 +104,18 @@ export function weekSummary(p: Progress): string {
 
 export function streakLabel(streak: number): string {
   return streak === 1 ? "1 semana" : `${streak} semanas`;
+}
+
+/** Datos del informe para el fisio de las últimas `weeks` semanas (reactivo). */
+export function useReport(today: Date, weeks: number): Report | undefined {
+  const key = localDateKey(today);
+  return useLiveQuery(async () => {
+    const [exercises, logs, entries, classes] = await Promise.all([
+      db.exercises.toArray(),
+      db.weightLogs.toArray(),
+      db.planEntries.toArray(),
+      db.gymClasses.toArray(),
+    ]);
+    return buildReport({ exercises, logs, entries, classes }, today, weeks);
+  }, [key, weeks]);
 }

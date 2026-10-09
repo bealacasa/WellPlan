@@ -6,24 +6,25 @@ import { TypeChip } from "@/components/typeStyle";
 import { Card, buttonPrimary } from "@/components/ui";
 import { streakLabel, useProgress, weekSummary } from "@/db/repositories/progress";
 import { useTodayPlan, type TodayPlan } from "@/db/repositories/today";
-import { deleteLog, quickLog } from "@/db/repositories/weightLogs";
+import { deleteLog, quickLog, restoreLogs, unmarkDay } from "@/db/repositories/weightLogs";
 import type { Exercise, WeightLog } from "@/db/types";
 import { localDateKey } from "@/lib/dates";
 import { EXERCISE_TYPE_LABEL, isClass, logSummary, targetLabel } from "@/lib/labels";
 import { formatKg } from "@/lib/numbers";
-import { quickLogInput } from "@/lib/progression";
+import { hadDiscomfort, quickLogInput } from "@/lib/progression";
 
 /** Lo que necesita cada fila: últimos registros, sugerencias y el registro de un toque. */
 type RowState = {
   lastLogs: ReadonlyMap<string, WeightLog>;
   suggestions: ReadonlyMap<string, number>;
   onQuickLog: (exercise: Exercise) => void;
+  onUnmark: (exercise: Exercise) => void;
 };
 const RowContext = createContext<RowState | null>(null);
 
-/** Aviso de "registrado" con opción de deshacer (por si se toca sin querer). */
+/** Aviso de "registrado" o "desmarcado" con opción de deshacer (por si se toca sin querer). */
 function useUndoToast() {
-  const [toast, setToast] = useState<{ logId: string; text: string } | null>(null);
+  const [toast, setToast] = useState<{ text: string; undo: () => void } | null>(null);
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), 6000);
@@ -38,7 +39,7 @@ function useUndoToast() {
       <button
         type="button"
         onClick={() => {
-          void deleteLog(toast.logId);
+          toast.undo();
           setToast(null);
         }}
         className="min-h-11 shrink-0 rounded-xl bg-black/15 px-4 font-bold"
@@ -64,7 +65,19 @@ export function TodayPage() {
         suggestions: plan.suggestions,
         onQuickLog: (exercise) =>
           void quickLog(exercise, localDateKey(new Date())).then(
-            (logId) => logId && showToast({ logId, text: `${exercise.name} registrado` }),
+            (logId) =>
+              logId &&
+              showToast({
+                text: `${exercise.name} registrado`,
+                undo: () => void deleteLog(logId),
+              }),
+          ),
+        onUnmark: (exercise) =>
+          void unmarkDay(exercise.id, localDateKey(new Date())).then((ids) =>
+            showToast({
+              text: `${exercise.name} desmarcado`,
+              undo: () => void restoreLogs(ids),
+            }),
           ),
       }
     : null;
@@ -292,6 +305,8 @@ function ExerciseRow({
   const last = state?.lastLogs.get(exercise.id) ?? null;
   const suggestion = isDone ? undefined : state?.suggestions.get(exercise.id);
   const quick = !isDone && state ? quickLogInput(exercise, last) : null;
+  // La última vez hubo molestias: no se repite de un toque, se registra en la ficha.
+  const discomfort = !isDone && hadDiscomfort(last);
   // Cardio: se muestra el objetivo (del día); el resto, lo que se registraría.
   const detail =
     last && exercise.type !== "cardio" && !isClass(exercise.type)
@@ -328,6 +343,11 @@ function ExerciseRow({
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
             <TypeChip type={exercise.type} label={EXERCISE_TYPE_LABEL[exercise.type]} />
             {detail}
+            {discomfort && (
+              <span className="rounded-full bg-danger/15 px-2 py-0.5 font-bold text-danger">
+                Molestias la última vez
+              </span>
+            )}
             {suggestion !== undefined && (
               <span className="rounded-full bg-accent-soft px-2 py-0.5 font-bold text-accent">
                 ↑ Prueba {formatKg(suggestion)} kg
@@ -336,13 +356,15 @@ function ExerciseRow({
           </span>
         </span>
       </Link>
-      {isDone ? (
-        <span
-          className="mr-1 grid size-11 shrink-0 place-items-center rounded-full bg-accent text-lg font-bold text-accent-contrast"
-          aria-label="Hecho hoy"
+      {isDone && state ? (
+        <button
+          type="button"
+          onClick={() => state.onUnmark(exercise)}
+          aria-label={`Hecho hoy. Desmarcar ${exercise.name}`}
+          className="grid size-12 shrink-0 place-items-center rounded-full bg-accent text-lg font-bold text-accent-contrast active:scale-95"
         >
           ✓
-        </span>
+        </button>
       ) : quick && state ? (
         <button
           type="button"
