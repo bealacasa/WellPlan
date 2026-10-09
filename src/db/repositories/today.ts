@@ -2,6 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { isoWeekday, localDateKey } from "@/lib/dates";
 import { db } from "../database";
 import { isAlive } from "../records";
+import { hasDayTarget } from "./plan";
 import type { Exercise } from "../types";
 
 /**
@@ -16,6 +17,8 @@ export type TodayItem = {
   /** Id de la sesión o del ejercicio suelto. */
   targetId: string;
   exercises: Exercise[];
+  /** Sesiones: su foto. */
+  photoId?: string | null;
   /** Clases: hora de inicio "HH:MM" y detalles (sala, monitor). */
   time?: string;
   detail?: string;
@@ -51,8 +54,20 @@ export async function getTodayPlan(date: Date): Promise<TodayPlan> {
     .sort((a, b) => a.position - b.position)
     .flatMap((entry): TodayItem[] => {
       if (entry.exerciseId) {
-        const exercise = exerciseById.get(entry.exerciseId);
-        if (!exercise) return [];
+        const base = exerciseById.get(entry.exerciseId);
+        if (!base) return [];
+        // Cardio con objetivo propio ese día: se muestra ese en lugar del del ejercicio.
+        const exercise: Exercise =
+          base.type === "cardio" && hasDayTarget(entry)
+            ? {
+                ...base,
+                targetDistanceKm: entry.targetDistanceKm,
+                durationSec: entry.durationSec,
+                intervalRunSec: entry.intervalRunSec,
+                intervalWalkSec: entry.intervalWalkSec,
+                intervalRounds: entry.intervalRounds,
+              }
+            : base;
         return [
           {
             entryId: entry.id,
@@ -71,6 +86,7 @@ export async function getTodayPlan(date: Date): Promise<TodayPlan> {
           kind: "session",
           title: session.name,
           targetId: session.id,
+          photoId: session.photoId,
           exercises: session.exerciseIds.flatMap((id) => exerciseById.get(id) ?? []),
         },
       ];

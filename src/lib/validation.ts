@@ -78,3 +78,24 @@ export const gymClassInputSchema = z.object({
 });
 
 export type GymClassInput = z.infer<typeof gymClassInputSchema>;
+
+/** Objetivo de cardio de un día del plan (todo null = el del ejercicio). */
+export const dayTargetSchema = z
+  .object({
+    targetDistanceKm: z.number().min(0).max(MAX_KM).nullable(),
+    durationSec: optionalInt(1, 10800),
+    intervalRunSec: optionalInt(1, 3600),
+    intervalWalkSec: optionalInt(0, 3600),
+    intervalRounds: optionalInt(1, 100),
+  })
+  .refine(
+    (t) =>
+      [t.intervalRunSec, t.intervalWalkSec, t.intervalRounds].every((x) => x === null) ||
+      [t.intervalRunSec, t.intervalWalkSec, t.intervalRounds].every((x) => x !== null),
+    {
+      message: "Completa los intervalos (correr, andar y repeticiones).",
+      path: ["intervalRunSec"],
+    },
+  );
+
+export type DayTarget = z.infer<typeof dayTargetSchema>;

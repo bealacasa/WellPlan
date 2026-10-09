@@ -1,17 +1,24 @@
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { TYPE_STYLE } from "@/components/typeStyle";
 import { EmptyState, PageHeader, buttonPrimary } from "@/components/ui";
 import { useExercises } from "@/db/repositories/exercises";
 import { useGymClasses } from "@/db/repositories/gymClasses";
-import { WEEKDAYS, addToDay, removeFromDay, useWeekPlan } from "@/db/repositories/plan";
+import {
+  WEEKDAYS,
+  addToDay,
+  hasDayTarget,
+  removeFromDay,
+  useWeekPlan,
+} from "@/db/repositories/plan";
 import { useSessions } from "@/db/repositories/sessions";
-import type { Exercise, GymClass, Session } from "@/db/types";
+import type { Exercise, GymClass, PlanEntry, Session } from "@/db/types";
 import { isoWeekday, weekdayName } from "@/lib/dates";
+import { targetLabel } from "@/lib/labels";
 
 /** Una entrada del día ya resuelta: sesión o ejercicio suelto. */
 type DayEntry =
   | { entryId: string; kind: "session"; session: Session }
-  | { entryId: string; kind: "exercise"; exercise: Exercise };
+  | { entryId: string; kind: "exercise"; exercise: Exercise; entry: PlanEntry };
 
 export function PlanPage() {
   const plan = useWeekPlan();
@@ -54,7 +61,7 @@ export function PlanPage() {
             entries={(plan[day] ?? []).flatMap((entry): DayEntry[] => {
               if (entry.exerciseId) {
                 const exercise = exerciseById.get(entry.exerciseId);
-                return exercise ? [{ entryId: entry.id, kind: "exercise", exercise }] : [];
+                return exercise ? [{ entryId: entry.id, kind: "exercise", exercise, entry }] : [];
               }
               const session = entry.sessionId ? sessionById.get(entry.sessionId) : undefined;
               return session ? [{ entryId: entry.id, kind: "session", session }] : [];
@@ -103,6 +110,17 @@ function DayCard({
   const exerciseOptions = exercises.filter((e) => !assigned.has(`e:${e.id}`));
   const name = weekdayName(weekday);
   const selectId = `day-${weekday}`;
+  const navigate = useNavigate();
+
+  async function add(value: string) {
+    const [kind, id] = value.split(":");
+    if (!id) return;
+    const entryId = await addToDay(weekday, kind === "s" ? { sessionId: id } : { exerciseId: id });
+    // Cardio: se pregunta el objetivo de ese día (distancia, tiempo, CaCo…).
+    if (kind === "e" && exercises.find((e) => e.id === id)?.type === "cardio") {
+      navigate(`/plan/objetivo/${entryId}`);
+    }
+  }
 
   return (
     <li
@@ -140,6 +158,11 @@ function DayCard({
           {entries.map((entry) => {
             const label = entry.kind === "session" ? entry.session.name : entry.exercise.name;
             const style = entry.kind === "exercise" ? TYPE_STYLE[entry.exercise.type] : null;
+            const cardio = entry.kind === "exercise" && entry.exercise.type === "cardio";
+            const dayTarget =
+              cardio && hasDayTarget(entry.entry)
+                ? targetLabel({ ...entry.exercise, ...dayTargetOf(entry.entry) })
+                : null;
             return (
               <li
                 key={entry.entryId}
@@ -152,11 +175,18 @@ function DayCard({
                   to={
                     entry.kind === "session"
                       ? `/sesiones/${entry.session.id}`
-                      : `/ejercicios/${entry.exercise.id}`
+                      : cardio
+                        ? `/plan/objetivo/${entry.entryId}`
+                        : `/ejercicios/${entry.exercise.id}`
                   }
-                  className="flex min-h-11 flex-1 items-center pl-1"
+                  className="flex min-h-11 min-w-0 flex-1 flex-col justify-center pl-1"
                 >
                   {label}
+                  {cardio && (
+                    <span className="text-xs font-semibold opacity-80">
+                      {dayTarget ? `Hoy toca: ${dayTarget}` : "Objetivo del día…"}
+                    </span>
+                  )}
                 </Link>
                 <button
                   type="button"
@@ -180,11 +210,7 @@ function DayCard({
           <select
             id={selectId}
             value=""
-            onChange={(e) => {
-              const [kind, id] = e.target.value.split(":");
-              if (!id) return;
-              void addToDay(weekday, kind === "s" ? { sessionId: id } : { exerciseId: id });
-            }}
+            onChange={(e) => void add(e.target.value)}
             className="min-h-11 w-full rounded-xl border border-dashed border-border bg-transparent px-3 font-medium text-muted"
           >
             <option value="">+ Añadir sesión o ejercicio…</option>
@@ -212,3 +238,11 @@ function DayCard({
     </li>
   );
 }
+
+const dayTargetOf = (e: PlanEntry) => ({
+  targetDistanceKm: e.targetDistanceKm,
+  durationSec: e.durationSec,
+  intervalRunSec: e.intervalRunSec,
+  intervalWalkSec: e.intervalWalkSec,
+  intervalRounds: e.intervalRounds,
+});

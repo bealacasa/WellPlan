@@ -61,6 +61,28 @@ export class WellPlanDB extends Dexie {
 
     // v3: horario de clases del gimnasio (tabla nueva, sin datos que migrar).
     this.version(3).stores({ gymClasses: "id, weekday, exerciseId, dirty" });
+
+    // v4: objetivo del día en las entradas del plan y foto en las sesiones.
+    this.version(4)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table("planEntries")
+          .toCollection()
+          .modify((p) => {
+            p.targetDistanceKm ??= null;
+            p.durationSec ??= null;
+            p.intervalRunSec ??= null;
+            p.intervalWalkSec ??= null;
+            p.intervalRounds ??= null;
+          });
+        await tx
+          .table("sessions")
+          .toCollection()
+          .modify((s) => {
+            s.photoId ??= null;
+          });
+      });
   }
 }
 

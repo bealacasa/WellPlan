@@ -176,6 +176,7 @@ export function photoPath(
 export const sessionRowSchema = z.object({
   ...syncColumns,
   name: z.string().max(80),
+  photo_id: z.uuid().nullable().optional(),
 });
 
 export const planRowSchema = z.object({
@@ -184,6 +185,12 @@ export const planRowSchema = z.object({
   session_id: z.uuid().nullable(),
   exercise_id: z.uuid().nullable().optional(),
   position: z.number().int(),
+  // Migración 0006: objetivo del día.
+  target_distance_km: numeric.nullable().optional(),
+  duration_sec: z.number().int().nullable().optional(),
+  interval_run_sec: z.number().int().nullable().optional(),
+  interval_walk_sec: z.number().int().nullable().optional(),
+  interval_rounds: z.number().int().nullable().optional(),
 });
 
 /** Filas de la tabla intermedia session_exercises (orden de los ejercicios de una sesión). */
@@ -195,10 +202,10 @@ export const sessionExerciseRowSchema = z.object({
 
 export const sessionMapping = {
   /** La lista de ejercicios viaja aparte, con la función set_session_exercises. */
-  toRemote: (s: Session) => ({ ...syncToRemote(s), name: s.name }),
+  toRemote: (s: Session) => ({ ...syncToRemote(s), name: s.name, photo_id: s.photoId }),
   fromRemote: (raw: unknown, exerciseIds: string[]): Session => {
     const row = sessionRowSchema.parse(raw);
-    return { ...syncFromRemote(row), name: row.name, exerciseIds };
+    return { ...syncFromRemote(row), name: row.name, photoId: row.photo_id ?? null, exerciseIds };
   },
 };
 
@@ -209,6 +216,11 @@ export const planMapping = {
     session_id: p.sessionId,
     exercise_id: p.exerciseId,
     position: p.position,
+    target_distance_km: p.targetDistanceKm,
+    duration_sec: p.durationSec,
+    interval_run_sec: p.intervalRunSec,
+    interval_walk_sec: p.intervalWalkSec,
+    interval_rounds: p.intervalRounds,
   }),
   fromRemote: (raw: unknown): PlanEntry => {
     const row = planRowSchema.parse(raw);
@@ -218,6 +230,11 @@ export const planMapping = {
       sessionId: row.session_id,
       exerciseId: row.exercise_id ?? null,
       position: row.position,
+      targetDistanceKm: row.target_distance_km ?? null,
+      durationSec: row.duration_sec ?? null,
+      intervalRunSec: row.interval_run_sec ?? null,
+      intervalWalkSec: row.interval_walk_sec ?? null,
+      intervalRounds: row.interval_rounds ?? null,
     };
   },
 };

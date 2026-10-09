@@ -9,11 +9,13 @@ import { buttonSecondary } from "./ui";
 export function PhotoPicker({
   currentUrl,
   onChange,
+  label = "Foto de la máquina (opcional)",
 }: {
   /** Foto ya guardada (al editar). */
   currentUrl: string | null;
   /** ProcessedImage = nueva, "remove" = quitarla, undefined = sin cambios. */
   onChange: (value: ProcessedImage | "remove" | undefined) => void;
+  label?: string;
 }) {
   const id = useId();
   const [preview, setPreview] = useState<string | null>(null);
@@ -61,7 +63,7 @@ export function PhotoPicker({
 
   return (
     <fieldset>
-      <legend className="text-sm font-medium">Foto de la máquina (opcional)</legend>
+      <legend className="text-sm font-medium">{label}</legend>
       {shown && (
         <img
           src={shown}

@@ -1,11 +1,12 @@
 import { useId, useState } from "react";
 import { Link } from "react-router";
 import { ExercisePhoto } from "@/components/ExercisePhoto";
+import { SessionPhoto } from "@/components/SessionPhoto";
 import { TypeChip } from "@/components/typeStyle";
 import { Card, buttonPrimary } from "@/components/ui";
 import { useTodayPlan, type TodayPlan } from "@/db/repositories/today";
 import type { Exercise } from "@/db/types";
-import { localDateKey, weekdayLabel } from "@/lib/dates";
+import { localDateKey } from "@/lib/dates";
 import { EXERCISE_TYPE_LABEL, targetLabel } from "@/lib/labels";
 import { PasskeyNudge } from "@/sync/PasskeyNudge";
 
@@ -18,7 +19,7 @@ export function TodayPage() {
 
   return (
     <>
-      <Hero date={now} plan={plan} total={all.length} done={done} />
+      <Hero plan={plan} total={all.length} done={done} />
       <PasskeyNudge />
 
       {plan === undefined ? null : plan.items.length === 0 ? (
@@ -30,6 +31,7 @@ export function TodayPage() {
               <SessionCard
                 key={item.entryId}
                 title={item.title}
+                photoId={item.photoId ?? null}
                 exercises={item.exercises}
                 done={plan.done}
                 open={openIds.has(item.entryId)}
@@ -98,12 +100,14 @@ function useOpenSessions(day: string): [Set<string>, (id: string) => void] {
 /** Sesión de hoy plegable: la cabecera muestra el progreso y el siguiente ejercicio. */
 function SessionCard({
   title,
+  photoId,
   exercises,
   done,
   open,
   onToggle,
 }: {
   title: string;
+  photoId: string | null;
   exercises: Exercise[];
   done: ReadonlySet<string>;
   open: boolean;
@@ -124,6 +128,7 @@ function SessionCard({
           aria-controls={listId}
           className="flex min-h-11 w-full items-center gap-3 text-left"
         >
+          {photoId && <SessionPhoto photoId={photoId} className="size-14 shrink-0 rounded-xl" />}
           <span className="min-w-0 flex-1">
             <span className="block text-2xl font-extrabold tracking-tight">{title}</span>
             {!open && (
@@ -239,33 +244,15 @@ function ExerciseRow({
   );
 }
 
-/** Cabecera destacada: día, fecha y progreso de hoy. */
-function Hero({
-  date,
-  plan,
-  total,
-  done,
-}: {
-  date: Date;
-  plan: TodayPlan | undefined;
-  total: number;
-  done: number;
-}) {
-  const [weekday, ...rest] = weekdayLabel(date).split(", ");
+/** Cabecera destacada y compacta: progreso de hoy. */
+function Hero({ plan, total, done }: { plan: TodayPlan | undefined; total: number; done: number }) {
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
-    <header className="mb-5 overflow-hidden rounded-3xl bg-linear-to-br from-accent to-accent-2 p-6 text-accent-contrast shadow-lg shadow-accent/25">
-      <p className="text-sm font-bold uppercase tracking-widest opacity-90" aria-hidden="true">
-        Hoy
-      </p>
-      <h1 className="mt-1 text-4xl font-extrabold tracking-tight">
-        <span className="sr-only">Hoy, </span>
-        {weekday}
-      </h1>
-      <p className="text-lg font-medium opacity-90">{rest.join(", ")}</p>
+    <header className="mb-5 overflow-hidden rounded-3xl bg-linear-to-br from-accent to-accent-2 px-5 py-4 text-accent-contrast shadow-lg shadow-accent/25">
+      <h1 className="text-3xl font-extrabold tracking-tight">Hoy</h1>
       {plan && (
-        <div className="mt-5">
+        <div className="mt-2">
           {total === 0 ? (
             <p className="text-lg font-semibold">Día de descanso</p>
           ) : (

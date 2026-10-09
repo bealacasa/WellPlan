@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import { LibraryTabs } from "@/components/LibraryTabs";
+import { SessionPhoto } from "@/components/SessionPhoto";
 import { EmptyState, PageHeader, buttonPrimary } from "@/components/ui";
 import { WEEKDAYS, useWeekPlan } from "@/db/repositories/plan";
 import { useSessions } from "@/db/repositories/sessions";
@@ -32,8 +33,9 @@ export function SessionsPage() {
               <li key={s.id}>
                 <Link
                   to={`/sesiones/${s.id}`}
-                  className="flex min-h-20 items-center gap-3 rounded-3xl border border-border bg-surface p-4 shadow-sm active:scale-[0.99]"
+                  className="flex min-h-20 items-center gap-3 rounded-3xl border border-border bg-surface p-2 pr-4 shadow-sm active:scale-[0.99]"
                 >
+                  <SessionPhoto photoId={s.photoId} className="size-16 shrink-0 rounded-xl" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-lg font-bold">{s.name}</span>
                     <span className="block text-sm text-muted">

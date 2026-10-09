@@ -70,6 +70,7 @@ export type WeightLog = SyncFields & {
 
 export type Session = SyncFields & {
   name: string;
+  photoId: string | null;
   /** Orden de los ejercicios en la sesión (en Postgres: tabla session_exercises). */
   exerciseIds: string[];
 };
@@ -81,6 +82,15 @@ export type PlanEntry = SyncFields & {
   sessionId: string | null;
   exerciseId: string | null;
   position: number;
+  /**
+   * Objetivo de ESTE día para un ejercicio de cardio (p. ej. el martes, CaCo). Todo null =
+   * vale el objetivo del propio ejercicio.
+   */
+  targetDistanceKm: number | null;
+  durationSec: number | null;
+  intervalRunSec: number | null;
+  intervalWalkSec: number | null;
+  intervalRounds: number | null;
 };
 
 /** Una clase del horario del gimnasio, un día de la semana a una hora. */

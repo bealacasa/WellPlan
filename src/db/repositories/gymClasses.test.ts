@@ -91,3 +91,51 @@ describe("horario del gimnasio", () => {
     expect((await db.exercises.toArray()).filter((e) => e.deletedAt === null)).toHaveLength(1);
   });
 });
+
+describe("objetivo del día y foto de sesión", () => {
+  it("Hoy usa el objetivo del día del cardio; sin él, el del ejercicio", async () => {
+    const { addToDay, setDayTarget, NO_DAY_TARGET } = await import("./plan");
+    const id = await createExercise({
+      name: "Correr",
+      type: "cardio",
+      physioNotes: "",
+      sets: 1,
+      reps: null,
+      durationSec: null,
+      targetKg: null,
+      targetDistanceKm: 5,
+    });
+    const entryId = await addToDay(1, { exerciseId: id });
+    expect(await addToDay(1, { exerciseId: id })).toBe(entryId); // no se duplica
+    await setDayTarget(entryId, { ...NO_DAY_TARGET, targetDistanceKm: 8, durationSec: 3000 });
+    const shown = (await getTodayPlan(MONDAY)).items[0]!.exercises[0]!;
+    expect(shown).toMatchObject({ id, targetDistanceKm: 8, durationSec: 3000 });
+
+    await setDayTarget(entryId, NO_DAY_TARGET);
+    expect((await getTodayPlan(MONDAY)).items[0]!.exercises[0]!.targetDistanceKm).toBe(5);
+    await expect(setDayTarget(entryId, { ...NO_DAY_TARGET, intervalRounds: 8 })).rejects.toThrow();
+  });
+
+  it("las sesiones guardan foto, se puede quitar y se borra con la sesión", async () => {
+    const { createSession, updateSession, deleteSession } = await import("./sessions");
+    const image = {
+      full: new Blob(["full"], { type: "image/webp" }),
+      thumb: new Blob(["thumb"], { type: "image/webp" }),
+      mime: "image/webp",
+      width: 1200,
+      height: 900,
+    };
+    const sessionId = await createSession({ name: "Glúteo", exerciseIds: [] }, image);
+    const photoId = (await db.sessions.get(sessionId))!.photoId!;
+    expect(await db.photos.get(photoId)).toBeTruthy();
+
+    await updateSession(sessionId, { name: "Glúteo", exerciseIds: [] }, "remove");
+    expect((await db.sessions.get(sessionId))!.photoId).toBeNull();
+    expect((await db.photos.get(photoId))!.deletedAt).not.toBeNull();
+
+    await updateSession(sessionId, { name: "Glúteo", exerciseIds: [] }, image);
+    const second = (await db.sessions.get(sessionId))!.photoId!;
+    await deleteSession(sessionId);
+    expect((await db.photos.get(second))!.deletedAt).not.toBeNull();
+  });
+});

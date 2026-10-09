@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ExercisePhoto } from "@/components/ExercisePhoto";
+import { PhotoPicker } from "@/components/PhotoPicker";
 import {
   EmptyState,
   PageHeader,
@@ -10,6 +11,7 @@ import {
   inputClass,
 } from "@/components/ui";
 import { useExercises } from "@/db/repositories/exercises";
+import { usePhotoUrl } from "@/db/repositories/photos";
 import {
   createSession,
   deleteSession,
@@ -17,6 +19,7 @@ import {
   useSession,
 } from "@/db/repositories/sessions";
 import type { Exercise, Session } from "@/db/types";
+import type { ProcessedImage } from "@/lib/image";
 import { targetLabel } from "@/lib/labels";
 import { moveItem } from "@/lib/lists";
 import { sessionInputSchema } from "@/lib/validation";
@@ -50,6 +53,8 @@ function SessionForm({ session, catalog }: { session: Session | null; catalog: E
   const [name, setName] = useState(session?.name ?? "");
   // Ignora ejercicios que ya no existen (borrados en otro dispositivo).
   const [ids, setIds] = useState(() => (session?.exerciseIds ?? []).filter((id) => byId.has(id)));
+  const currentPhoto = usePhotoUrl(session?.photoId ?? null, "full");
+  const [image, setImage] = useState<ProcessedImage | "remove" | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const available = catalog.filter((e) => !ids.includes(e.id));
@@ -67,8 +72,8 @@ function SessionForm({ session, catalog }: { session: Session | null; catalog: E
     }
     setSaving(true);
     try {
-      if (session) await updateSession(session.id, parsed.data);
-      else await createSession(parsed.data);
+      if (session) await updateSession(session.id, parsed.data, image);
+      else await createSession(parsed.data, image === "remove" ? undefined : image);
       navigate("/sesiones", { replace: true });
     } catch {
       setError("No se pudo guardar. Inténtalo de nuevo.");
@@ -80,7 +85,8 @@ function SessionForm({ session, catalog }: { session: Session | null; catalog: E
     if (!session) return;
     const ok = await confirm({
       title: `¿Borrar «${session.name}»?`,
-      message: "Se quitará también de los días del plan. Los ejercicios no se borran.",
+      message:
+        "Se quitará también de los días del plan (y se borrará su foto). Los ejercicios no se borran.",
       confirmLabel: "Borrar sesión",
     });
     if (!ok) return;
@@ -112,6 +118,12 @@ function SessionForm({ session, catalog }: { session: Session | null; catalog: E
             className={`${inputClass} mt-1`}
           />
         </div>
+
+        <PhotoPicker
+          currentUrl={currentPhoto}
+          onChange={setImage}
+          label="Foto de la sesión (opcional)"
+        />
 
         <section aria-labelledby="orden">
           <h2 id="orden" className="text-lg font-semibold">

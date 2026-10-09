@@ -163,3 +163,27 @@ describe("horario del gimnasio", () => {
     expect(await pendingCount(db)).toBe(1);
   });
 });
+
+describe("objetivo del día y foto de sesión", () => {
+  it("viajan a otro dispositivo", async () => {
+    const { addToDay, setDayTarget, NO_DAY_TARGET } = await import("@/db/repositories/plan");
+    const { createSession } = await import("@/db/repositories/sessions");
+    const cloud = fakeCloud();
+    const id = await createExercise({ ...exerciseInput, type: "cardio", sets: 1, reps: null });
+    const entryId = await addToDay(3, { exerciseId: id });
+    await setDayTarget(entryId, {
+      ...NO_DAY_TARGET,
+      intervalRunSec: 60,
+      intervalWalkSec: 60,
+      intervalRounds: 10,
+    });
+    const sessionId = await createSession({ name: "Glúteo", exerciseIds: [id] }, image);
+    await syncOnce(db, cloud.client, USER);
+
+    await syncOnce(otherDevice, cloud.client, USER);
+    expect(await otherDevice.planEntries.get(entryId)).toMatchObject({ intervalRounds: 10 });
+    const session = await otherDevice.sessions.get(sessionId);
+    expect(session?.photoId).toBeTruthy();
+    expect(await otherDevice.photos.get(session!.photoId!)).toBeTruthy();
+  });
+});

@@ -151,3 +151,43 @@ describe("horario del gimnasio", () => {
     expect(await db.gymClasses.count()).toBe(0);
   });
 });
+
+describe("objetivo del día para cardio", () => {
+  it("al añadir correr a un día se elige su objetivo (con CaCo) y se ve en el plan", async () => {
+    const { createExercise } = await import("@/db/repositories/exercises");
+    const id = await createExercise({
+      name: "Correr",
+      type: "cardio",
+      physioNotes: "",
+      sets: 1,
+      reps: null,
+      durationSec: null,
+      targetKg: null,
+      targetDistanceKm: 5,
+    });
+    const user = userEvent.setup();
+    render(
+      <RouterProvider router={createMemoryRouter(router.routes, { initialEntries: ["/plan"] })} />,
+    );
+    await user.selectOptions(await screen.findByLabelText("Añadir al martes"), `e:${id}`);
+
+    expect(await screen.findByText("Objetivo del martes")).toBeTruthy();
+    // Parte del objetivo habitual del ejercicio.
+    expect((screen.getByLabelText("Distancia (km)") as HTMLInputElement).value).toBe("5");
+    await user.clear(screen.getByLabelText("Distancia (km)"));
+    await user.click(screen.getByLabelText("Intervalos CaCo (caminar-correr)"));
+    await user.click(screen.getByRole("button", { name: "Guardar objetivo del martes" }));
+
+    expect(await screen.findByText("Hoy toca: 8 × (2′ correr + 1′ andar)")).toBeTruthy();
+    const entry = (await db.planEntries.toArray())[0]!;
+    expect(entry).toMatchObject({
+      weekday: 2,
+      targetDistanceKm: null,
+      intervalRunSec: 120,
+      intervalWalkSec: 60,
+      intervalRounds: 8,
+    });
+    // El ejercicio conserva su objetivo de siempre.
+    expect((await db.exercises.get(id))?.targetDistanceKm).toBe(5);
+  });
+});
