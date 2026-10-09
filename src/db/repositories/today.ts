@@ -1,9 +1,10 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { isoWeekday, localDateKey } from "@/lib/dates";
+import { suggestNextKg } from "@/lib/progression";
 import { db } from "../database";
 import { isAlive } from "../records";
 import { hasDayTarget } from "./plan";
-import type { Exercise } from "../types";
+import type { Exercise, WeightLog } from "../types";
 
 /**
  * Lo que toca hoy: una sesión (con sus ejercicios en orden), un ejercicio suelto o una
@@ -28,6 +29,10 @@ export type TodayPlan = {
   items: TodayItem[];
   /** Ejercicios con algún registro hoy (= hechos). */
   done: Set<string>;
+  /** Último registro de cada ejercicio de hoy (para "igual que la última vez"). */
+  lastLogs: Map<string, WeightLog>;
+  /** Peso sugerido para subir (sobrecarga progresiva), por ejercicio. */
+  suggestions: Map<string, number>;
   /** ¿Hay algo creado? Para guiar al usuario la primera vez. */
   hasExercises: boolean;
   hasSessions: boolean;
@@ -113,8 +118,28 @@ export async function getTodayPlan(date: Date): Promise<TodayPlan> {
       ];
     });
 
+  const items = [...classItems, ...planned];
+  // Historial de los ejercicios de hoy, del más reciente al más antiguo.
+  const ids = [...new Set(items.flatMap((i) => i.exercises.map((e) => e.id)))];
+  const history = (await db.weightLogs.where("exerciseId").anyOf(ids).toArray())
+    .filter(isAlive)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  const lastLogs = new Map<string, WeightLog>();
+  const byExercise = new Map<string, WeightLog[]>();
+  for (const log of history) {
+    if (!lastLogs.has(log.exerciseId)) lastLogs.set(log.exerciseId, log);
+    byExercise.set(log.exerciseId, [...(byExercise.get(log.exerciseId) ?? []), log]);
+  }
+  const suggestions = new Map<string, number>();
+  for (const exercise of exerciseById.values()) {
+    const next = suggestNextKg(exercise, byExercise.get(exercise.id) ?? []);
+    if (next !== null) suggestions.set(exercise.id, next);
+  }
+
   return {
-    items: [...classItems, ...planned],
+    items,
+    lastLogs,
+    suggestions,
     done: new Set(logs.filter(isAlive).map((l) => l.exerciseId)),
     hasExercises: exerciseById.size > 0,
     hasSessions: sessionById.size > 0,

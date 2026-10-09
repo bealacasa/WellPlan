@@ -1,10 +1,11 @@
 import Dexie from "dexie";
 import { useLiveQuery } from "dexie-react-hooks";
+import { quickLogInput } from "@/lib/progression";
 import { weightLogInputSchema, type WeightLogInput } from "@/lib/validation";
 import { notifyLocalChange } from "../changes";
 import { db } from "../database";
 import { createRecord, isAlive, tombstone } from "../records";
-import type { WeightLog } from "../types";
+import type { Exercise, WeightLog } from "../types";
 
 /** Más reciente primero (por fecha y, dentro del mismo día, por hora de registro). */
 const newestFirst = (a: WeightLog, b: WeightLog) =>
@@ -40,6 +41,15 @@ export async function addLog(exerciseId: string, input: WeightLogInput): Promise
   await db.weightLogs.add(log);
   notifyLocalChange();
   return log.id;
+}
+
+/**
+ * Registro de un toque desde Hoy: igual que la última vez (o según el objetivo).
+ * Devuelve el id (para poder deshacerlo) o null si hace falta abrir el formulario.
+ */
+export async function quickLog(exercise: Exercise, date: string): Promise<string | null> {
+  const input = quickLogInput(exercise, await getLastLog(exercise.id));
+  return input ? addLog(exercise.id, { ...input, date }) : null;
 }
 
 export async function deleteLog(id: string): Promise<void> {

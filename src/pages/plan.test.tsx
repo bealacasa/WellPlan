@@ -229,3 +229,49 @@ describe("pantalla de progreso", () => {
     expect(screen.getByText(/Racha: 1 semana/)).toBeTruthy();
   });
 });
+
+describe("registro rápido desde Hoy", () => {
+  it("✓ registra igual que la última vez, sugiere subir peso y se puede deshacer", async () => {
+    const { addToDay } = await import("@/db/repositories/plan");
+    const { addLog } = await import("@/db/repositories/weightLogs");
+    const { isoWeekday } = await import("@/lib/dates");
+    const id = await exercise("Prensa");
+    await addToDay(isoWeekday(new Date()), { exerciseId: id });
+    for (const date of ["2026-01-05", "2026-01-07"]) {
+      await addLog(id, { date, kg: 20, sets: 3, reps: 12, note: null });
+    }
+    const user = userEvent.setup();
+    render(
+      <RouterProvider router={createMemoryRouter(router.routes, { initialEntries: ["/"] })} />,
+    );
+    expect(await screen.findByText("Última: 20 kg · 3 × 12")).toBeTruthy();
+    expect(screen.getByText("↑ Prueba 22,5 kg")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Registrar Prensa: 20 kg · 3 × 12" }));
+    expect(await screen.findByLabelText("Hecho hoy")).toBeTruthy();
+    const today = (await db.weightLogs.toArray()).filter((l) => l.date > "2026-01-07");
+    expect(today).toHaveLength(1);
+    expect(today[0]).toMatchObject({ kg: 20, sets: 3, reps: 12 });
+
+    await user.click(screen.getByRole("button", { name: "Deshacer" }));
+    expect(
+      await screen.findByRole("button", { name: "Registrar Prensa: 20 kg · 3 × 12" }),
+    ).toBeTruthy();
+  });
+
+  it("en la ficha, el botón de la sugerencia pone el peso nuevo", async () => {
+    const { addLog } = await import("@/db/repositories/weightLogs");
+    const id = await exercise("Prensa");
+    for (const date of ["2026-01-05", "2026-01-07"]) {
+      await addLog(id, { date, kg: 20, sets: 3, reps: 12, note: null });
+    }
+    const user = userEvent.setup();
+    render(
+      <RouterProvider
+        router={createMemoryRouter(router.routes, { initialEntries: [`/ejercicios/${id}`] })}
+      />,
+    );
+    await user.click(await screen.findByRole("button", { name: "↑ Probar con 22,5 kg" }));
+    expect((screen.getByLabelText("Peso") as HTMLInputElement).value).toBe("22,5");
+  });
+});

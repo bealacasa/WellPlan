@@ -10,6 +10,7 @@ import { useExercise } from "@/db/repositories/exercises";
 import { addLog, deleteLog, useLogs } from "@/db/repositories/weightLogs";
 import type { Exercise, WeightLog } from "@/db/types";
 import { localDateKey } from "@/lib/dates";
+import { suggestNextKg } from "@/lib/progression";
 import {
   EXERCISE_TYPE_LABEL,
   isCardio,
@@ -105,6 +106,7 @@ export function ExerciseDetailPage() {
         key={logs[0]?.id ?? "vacio"}
         exercise={exercise}
         last={logs[0] ?? null}
+        suggestion={suggestNextKg(exercise, logs)}
         onSaved={setSaved}
       />
       {saved && (
@@ -159,6 +161,8 @@ export function ExerciseDetailPage() {
 type QuickLogProps = {
   exercise: Exercise;
   last: WeightLog | null;
+  /** Peso sugerido para subir (sobrecarga progresiva), si toca. */
+  suggestion: number | null;
   onSaved: (message: string) => void;
 };
 
@@ -214,7 +218,7 @@ function useSave(onSaved: QuickLogProps["onSaved"]) {
 }
 
 /** Fuerza, estiramientos y clases: kilos ±2,5, series y repeticiones. */
-function StrengthForm({ exercise, last, onSaved }: QuickLogProps) {
+function StrengthForm({ exercise, last, suggestion, onSaved }: QuickLogProps) {
   const withKg = usesKg(exercise.type);
   const initialKg = last?.kg ?? exercise.targetKg;
   const [kg, setKg] = useState(initialKg !== null ? formatKg(initialKg) : "");
@@ -248,6 +252,21 @@ function StrengthForm({ exercise, last, onSaved }: QuickLogProps) {
 
   return (
     <form onSubmit={save} className="mt-4 space-y-4" noValidate>
+      {suggestion !== null && last?.kg != null && (
+        <div className="rounded-2xl bg-accent-soft p-4">
+          <p className="font-semibold">
+            Has completado {exercise.sets} × {exercise.reps} con {formatKg(last.kg)} kg las dos
+            últimas veces.
+          </p>
+          <button
+            type="button"
+            onClick={() => setKg(formatKg(suggestion))}
+            className="mt-2 min-h-11 rounded-xl bg-accent px-4 font-bold text-accent-contrast active:scale-95"
+          >
+            ↑ Probar con {formatKg(suggestion)} kg
+          </button>
+        </div>
+      )}
       {withKg && (
         <KgField id="kg" label="Peso" value={kg} onChange={setKg} invalid={error !== null} />
       )}

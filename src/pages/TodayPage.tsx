@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { createContext, use, useEffect, useId, useState } from "react";
 import { Link } from "react-router";
 import { ExercisePhoto } from "@/components/ExercisePhoto";
 import { SessionPhoto } from "@/components/SessionPhoto";
@@ -6,9 +6,49 @@ import { TypeChip } from "@/components/typeStyle";
 import { Card, buttonPrimary } from "@/components/ui";
 import { streakLabel, useProgress, weekSummary } from "@/db/repositories/progress";
 import { useTodayPlan, type TodayPlan } from "@/db/repositories/today";
-import type { Exercise } from "@/db/types";
+import { deleteLog, quickLog } from "@/db/repositories/weightLogs";
+import type { Exercise, WeightLog } from "@/db/types";
 import { localDateKey } from "@/lib/dates";
-import { EXERCISE_TYPE_LABEL, targetLabel } from "@/lib/labels";
+import { EXERCISE_TYPE_LABEL, isClass, logSummary, targetLabel } from "@/lib/labels";
+import { formatKg } from "@/lib/numbers";
+import { quickLogInput } from "@/lib/progression";
+
+/** Lo que necesita cada fila: últimos registros, sugerencias y el registro de un toque. */
+type RowState = {
+  lastLogs: ReadonlyMap<string, WeightLog>;
+  suggestions: ReadonlyMap<string, number>;
+  onQuickLog: (exercise: Exercise) => void;
+};
+const RowContext = createContext<RowState | null>(null);
+
+/** Aviso de "registrado" con opción de deshacer (por si se toca sin querer). */
+function useUndoToast() {
+  const [toast, setToast] = useState<{ logId: string; text: string } | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+  const element = toast && (
+    <div
+      role="status"
+      className="fixed inset-x-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-50 mx-auto flex max-w-xl items-center gap-3 rounded-2xl bg-accent p-3 pl-4 text-accent-contrast shadow-lg"
+    >
+      <span className="min-w-0 flex-1 font-bold">✓ {toast.text}</span>
+      <button
+        type="button"
+        onClick={() => {
+          void deleteLog(toast.logId);
+          setToast(null);
+        }}
+        className="min-h-11 shrink-0 rounded-xl bg-black/15 px-4 font-bold"
+      >
+        Deshacer
+      </button>
+    </div>
+  );
+  return [element, setToast] as const;
+}
 import { PasskeyNudge } from "@/sync/PasskeyNudge";
 
 export function TodayPage() {
@@ -17,9 +57,20 @@ export function TodayPage() {
   const all = plan?.items.flatMap((item) => item.exercises) ?? [];
   const done = all.filter((e) => plan?.done.has(e.id)).length;
   const [openIds, toggle] = useOpenSessions(localDateKey(now));
+  const [toast, showToast] = useUndoToast();
+  const rowState: RowState | null = plan
+    ? {
+        lastLogs: plan.lastLogs,
+        suggestions: plan.suggestions,
+        onQuickLog: (exercise) =>
+          void quickLog(exercise, localDateKey(new Date())).then(
+            (logId) => logId && showToast({ logId, text: `${exercise.name} registrado` }),
+          ),
+      }
+    : null;
 
   return (
-    <>
+    <RowContext value={rowState}>
       <Hero plan={plan} total={all.length} done={done} />
       <PasskeyNudge />
 
@@ -56,7 +107,8 @@ export function TodayPage() {
         </div>
       )}
       {plan?.hasExercises && <ProgressLink today={now} />}
-    </>
+      {toast}
+    </RowContext>
   );
 }
 
@@ -223,7 +275,10 @@ function ExerciseList({
   );
 }
 
-/** Fila de un ejercicio de hoy: abre su ficha para registrar; ✓ si ya está hecho. */
+/**
+ * Fila de un ejercicio de hoy. Tocarla abre su ficha; el botón ✓ lo registra igual que la
+ * última vez (o según el objetivo). Si ya está hecho hoy, se marca con ✓.
+ */
 function ExerciseRow({
   exercise,
   index,
@@ -233,44 +288,80 @@ function ExerciseRow({
   index: number | null;
   isDone: boolean;
 }) {
+  const state = use(RowContext);
+  const last = state?.lastLogs.get(exercise.id) ?? null;
+  const suggestion = isDone ? undefined : state?.suggestions.get(exercise.id);
+  const quick = !isDone && state ? quickLogInput(exercise, last) : null;
+  // Cardio: se muestra el objetivo (del día); el resto, lo que se registraría.
+  const detail =
+    last && exercise.type !== "cardio" && !isClass(exercise.type)
+      ? `Última: ${logSummary(last, exercise.type)}`
+      : targetLabel(exercise);
+
   return (
-    <Link
-      to={`/ejercicios/${exercise.id}`}
-      className={`flex min-h-20 items-center gap-3 rounded-2xl border p-2 pr-3 active:scale-[0.99] ${
+    <div
+      className={`flex min-h-20 items-center gap-2 rounded-2xl border p-2 ${
         isDone ? "border-accent bg-accent-soft" : "border-border bg-surface"
       }`}
     >
-      {index !== null && (
-        <span className="w-5 shrink-0 text-center font-bold text-muted tabular-nums">{index}</span>
-      )}
-      <ExercisePhoto
-        photoId={exercise.photoId}
-        type={exercise.type}
-        name={exercise.name}
-        variant="thumb"
-        alt=""
-        className="size-14 shrink-0 rounded-xl"
-      />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-lg font-bold">{exercise.name}</span>
-        <span className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-muted">
-          <TypeChip type={exercise.type} label={EXERCISE_TYPE_LABEL[exercise.type]} />
-          {targetLabel(exercise)}
+      <Link
+        to={`/ejercicios/${exercise.id}`}
+        className="flex min-w-0 flex-1 items-center gap-3 active:scale-[0.99]"
+      >
+        {index !== null && (
+          <span className="w-5 shrink-0 text-center font-bold text-muted tabular-nums">
+            {index}
+          </span>
+        )}
+        <ExercisePhoto
+          photoId={exercise.photoId}
+          type={exercise.type}
+          name={exercise.name}
+          variant="thumb"
+          alt=""
+          className="size-14 shrink-0 rounded-xl"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="line-clamp-2 block text-lg leading-tight font-bold">
+            {exercise.name}
+          </span>
+          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+            <TypeChip type={exercise.type} label={EXERCISE_TYPE_LABEL[exercise.type]} />
+            {detail}
+            {suggestion !== undefined && (
+              <span className="rounded-full bg-accent-soft px-2 py-0.5 font-bold text-accent">
+                ↑ Prueba {formatKg(suggestion)} kg
+              </span>
+            )}
+          </span>
         </span>
-      </span>
+      </Link>
       {isDone ? (
         <span
-          className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-lg font-bold text-accent-contrast"
+          className="mr-1 grid size-11 shrink-0 place-items-center rounded-full bg-accent text-lg font-bold text-accent-contrast"
           aria-label="Hecho hoy"
         >
           ✓
         </span>
+      ) : quick && state ? (
+        <button
+          type="button"
+          onClick={() => state.onQuickLog(exercise)}
+          aria-label={
+            isClass(exercise.type)
+              ? `Marcar ${exercise.name} como hecha`
+              : `Registrar ${exercise.name}: ${logSummary(quick, exercise.type)}`
+          }
+          className="grid size-12 shrink-0 place-items-center rounded-full border-2 border-accent text-xl font-bold text-accent active:scale-95"
+        >
+          ✓
+        </button>
       ) : (
-        <span aria-hidden="true" className="text-2xl text-muted">
+        <span aria-hidden="true" className="mr-2 text-2xl text-muted">
           ›
         </span>
       )}
-    </Link>
+    </div>
   );
 }
 
