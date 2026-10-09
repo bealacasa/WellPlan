@@ -187,6 +187,7 @@ function SessionForm({ session, catalog }: { session: Session | null; catalog: E
                     <ExercisePhoto
                       photoId={exercise.photoId}
                       type={exercise.type}
+                      name={exercise.name}
                       variant="thumb"
                       alt=""
                       className="size-12 shrink-0 rounded-xl"

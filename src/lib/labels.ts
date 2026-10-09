@@ -90,5 +90,6 @@ export function logSummary(
   }
   if (isClass(type)) return "Hecha";
   const kg = log.kg !== null ? `${formatKg(log.kg)} kg · ` : "";
-  return `${kg}${log.sets} × ${log.reps ?? "—"}`;
+  const work = log.durationSec !== null ? `${log.durationSec} s` : (log.reps ?? "—");
+  return `${kg}${log.sets} × ${work}`;
 }

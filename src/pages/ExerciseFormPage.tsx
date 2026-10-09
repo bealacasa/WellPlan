@@ -48,6 +48,10 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
   const [sets, setSets] = useState(exercise?.sets ?? 3);
   const [reps, setReps] = useState(exercise?.reps ?? 12);
   const [durationSec, setDurationSec] = useState(exercise?.durationSec ?? 30);
+  // Peso corporal: por repeticiones (sentadillas) o por tiempo (planchas).
+  const [byTime, setByTime] = useState(
+    exercise?.type === "peso_corporal" && exercise.durationSec !== null,
+  );
   // Las clases se editan en minutos (se guardan en segundos, como el resto).
   const [classMinutes, setClassMinutes] = useState(
     exercise?.type === "clase" && exercise.durationSec ? Math.round(exercise.durationSec / 60) : 60,
@@ -91,19 +95,20 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
       return;
     }
     const intervals = cardio && useIntervals;
+    const timed = usesDuration(type) || (type === "peso_corporal" && byTime);
     const parsed = exerciseInputSchema.safeParse({
       name,
       type,
       physioNotes,
       sets: isClass(type) || cardio ? 1 : sets,
-      reps: usesDuration(type) || cardio ? null : reps,
+      reps: timed || cardio ? null : reps,
       durationSec: isClass(type)
         ? classMinutes * 60
         : cardio
           ? minutes !== null
             ? minutes * 60
             : null
-          : usesDuration(type)
+          : timed
             ? durationSec
             : null,
       targetKg: usesKg(type) ? kg : null,
@@ -186,6 +191,32 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
         </fieldset>
 
         <PhotoPicker currentUrl={currentPhoto} onChange={setImage} />
+
+        {type === "peso_corporal" && (
+          <fieldset>
+            <legend className="text-sm font-medium">Se mide por</legend>
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              {[
+                { value: false, label: "Repeticiones" },
+                { value: true, label: "Tiempo" },
+              ].map((option) => (
+                <label
+                  key={option.label}
+                  className="flex min-h-12 cursor-pointer items-center justify-center rounded-2xl border-2 border-border bg-surface font-bold has-[:checked]:border-accent has-[:checked]:bg-accent-soft"
+                >
+                  <input
+                    type="radio"
+                    name="measure"
+                    checked={byTime === option.value}
+                    onChange={() => setByTime(option.value)}
+                    className="sr-only"
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
 
         <div>
           <label htmlFor="notes" className="text-sm font-medium">
@@ -296,7 +327,7 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
               max={20}
             />
           )}
-          {isClass(type) ? null : usesDuration(type) ? (
+          {isClass(type) ? null : usesDuration(type) || (type === "peso_corporal" && byTime) ? (
             <NumberStepper
               id="duration"
               label="Duración (segundos)"

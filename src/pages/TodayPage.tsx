@@ -76,6 +76,7 @@ function ExerciseRow({
       <ExercisePhoto
         photoId={exercise.photoId}
         type={exercise.type}
+        name={exercise.name}
         variant="thumb"
         alt=""
         className="size-14 shrink-0 rounded-xl"

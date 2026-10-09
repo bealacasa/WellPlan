@@ -115,3 +115,24 @@ describe("tipo clase", () => {
     expect(stored).toMatchObject({ type: "clase", sets: 1, durationSec: 3600, reps: null });
   });
 });
+
+describe("peso corporal por tiempo", () => {
+  it("una plancha se mide en segundos y se registra el tiempo aguantado", async () => {
+    const user = userEvent.setup();
+    renderAt("/ejercicios/nuevo");
+    await user.type(await screen.findByLabelText("Nombre"), "Plancha frontal");
+    await user.click(screen.getByLabelText("Peso corporal"));
+    await user.click(screen.getByRole("radio", { name: "Tiempo" }));
+    expect((screen.getByLabelText("Duración (segundos)") as HTMLInputElement).value).toBe("30");
+    await user.click(screen.getByRole("button", { name: "Guardar ejercicio" }));
+
+    expect(await screen.findByText(/3 × 30 s/)).toBeTruthy();
+    const stored = (await db.exercises.toArray())[0]!;
+    expect(stored).toMatchObject({ type: "peso_corporal", reps: null, durationSec: 30 });
+
+    expect((screen.getByLabelText("Segundos") as HTMLInputElement).value).toBe("30");
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await vi.waitFor(async () => expect(await db.weightLogs.count()).toBe(1), { timeout: 5000 });
+    expect((await db.weightLogs.toArray())[0]).toMatchObject({ durationSec: 30, reps: null });
+  });
+});

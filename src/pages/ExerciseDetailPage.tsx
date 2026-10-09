@@ -81,6 +81,7 @@ export function ExerciseDetailPage() {
       <ExercisePhoto
         photoId={exercise.photoId}
         type={exercise.type}
+        name={exercise.name}
         variant="full"
         alt={`Máquina o posición de ${exercise.name}`}
         className="mb-4 aspect-[4/3] w-full rounded-3xl"
@@ -219,6 +220,9 @@ function StrengthForm({ exercise, last, onSaved }: QuickLogProps) {
   const [kg, setKg] = useState(initialKg !== null ? formatKg(initialKg) : "");
   const [sets, setSets] = useState(last?.sets ?? exercise.sets);
   const [reps, setReps] = useState(last?.reps ?? exercise.reps ?? 10);
+  // Ejercicios por tiempo (planchas, estiramientos): segundos aguantados por serie.
+  const timed = exercise.durationSec !== null && !isClass(exercise.type);
+  const [holdSec, setHoldSec] = useState(last?.durationSec ?? exercise.durationSec ?? 30);
   const [note, setNote] = useState("");
   const { error, setError, saving, run } = useSave(onSaved);
 
@@ -235,6 +239,7 @@ function StrengthForm({ exercise, last, onSaved }: QuickLogProps) {
         kg: value,
         sets,
         reps: exercise.durationSec ? null : reps,
+        durationSec: timed ? holdSec : null,
         note,
       });
       return value !== null ? `Guardado: ${formatKg(value)} kg` : "Guardado";
@@ -255,6 +260,16 @@ function StrengthForm({ exercise, last, onSaved }: QuickLogProps) {
             onChange={setSets}
             min={1}
             max={20}
+          />
+        )}
+        {timed && (
+          <NumberStepper
+            id="log-hold"
+            label="Segundos"
+            value={holdSec}
+            onChange={setHoldSec}
+            min={1}
+            max={3600}
           />
         )}
         {!exercise.durationSec && (

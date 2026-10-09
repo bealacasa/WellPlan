@@ -56,6 +56,7 @@ export function ExercisesPage() {
                 <ExercisePhoto
                   photoId={e.photoId}
                   type={e.type}
+                  name={e.name}
                   variant="thumb"
                   alt=""
                   className="size-16 shrink-0 rounded-xl"

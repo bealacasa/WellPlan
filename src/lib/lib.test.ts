@@ -192,3 +192,28 @@ describe("cardio", () => {
     expect(exerciseInputSchema.safeParse({ ...base, intervalRunSec: 60 }).success).toBe(false);
   });
 });
+
+describe("ilustraciones y series por tiempo", () => {
+  it("reconoce los ejercicios por su nombre, con o sin tildes", async () => {
+    const { illustrationFor } = await import("@/components/illustrations");
+    expect(illustrationFor("Sentadilla goblet")).toBe("squat");
+    expect(illustrationFor("Peso muerto rumano")).toBe("deadlift");
+    expect(illustrationFor("Hip thrust")).toBe("hip_thrust");
+    expect(illustrationFor("Puente de glúteo")).toBe("hip_thrust");
+    expect(illustrationFor("Prensa de piernas")).toBe("leg_press");
+    expect(illustrationFor("Patadas traseras")).toBe("donkey_kick");
+    expect(illustrationFor("PLANCHA LATERAL")).toBe("side_plank");
+    expect(illustrationFor("Plancha frontal")).toBe("plank");
+    expect(illustrationFor("Yoga")).toBeNull();
+  });
+
+  it("resume una serie aguantada en segundos", async () => {
+    const { logSummary } = await import("./labels");
+    expect(
+      logSummary(
+        { kg: null, sets: 3, reps: null, distanceKm: null, durationSec: 30, effort: null },
+        "peso_corporal",
+      ),
+    ).toBe("3 × 30 s");
+  });
+});
