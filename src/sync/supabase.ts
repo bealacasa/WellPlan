@@ -14,8 +14,12 @@ export const supabase: SupabaseClient | null =
         auth: {
           persistSession: true,
           autoRefreshToken: true,
-          // Entramos con código o passkey, nunca con tokens en la URL.
-          detectSessionInUrl: false,
+          // Primer acceso con el enlace del email: la sesión llega en el fragmento (#) de la URL,
+          // que nunca se envía al servidor, y supabase-js lo borra de la barra al leerlo.
+          // Flujo "implicit" (no PKCE) para que funcione aunque el enlace se abra en Safari y no
+          // en la app instalada (PKCE exige el mismo navegador que pidió el enlace).
+          detectSessionInUrl: true,
+          flowType: "implicit",
           storageKey: "wellplan-auth",
         },
       })

@@ -3,34 +3,30 @@ import { Card, buttonPrimary, buttonSecondary, inputClass } from "@/components/u
 import {
   passkeysSupported,
   registerPasskey,
-  sendCode,
+  sendLoginLink,
   signInWithPasskey,
   signOut,
   useSession,
-  verifyCode,
   type AuthResult,
 } from "./auth";
 import { isCloudConfigured } from "./supabase";
 
-/** Cuenta para guardar los datos en la nube: passkey (Face ID) o código por email. */
+/**
+ * Cuenta para guardar los datos en la nube. Primer acceso con enlace por email (en Safari),
+ * después passkey: se guarda en el llavero de iCloud y sirve también en la app instalada.
+ */
 export function AccountCard() {
   const { session, loading } = useSession();
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [codeSent, setCodeSent] = useState(false);
+  const [linkSent, setLinkSent] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
 
   const run = (action: () => Promise<AuthResult>, success?: string) =>
     start(async () => {
       const result = await action();
-      setMessage(
-        result.ok
-          ? success
-            ? { ok: true, text: success }
-            : null
-          : { ok: false, text: result.error },
-      );
+      if (!result.ok) setMessage({ ok: false, text: result.error });
+      else setMessage(success ? { ok: true, text: success } : null);
     });
 
   return (
@@ -49,16 +45,25 @@ export function AccountCard() {
             Sesión iniciada como <strong className="break-all">{session.user.email}</strong>.
           </p>
           {passkeysSupported() && (
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                run(registerPasskey, "Passkey guardada. La próxima vez entra con Face ID.")
-              }
-              className={`${buttonSecondary} w-full`}
-            >
-              Añadir passkey (Face ID)
-            </button>
+            <>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  run(
+                    registerPasskey,
+                    "Passkey guardada en tu llavero. En la app instalada, entra con «Entrar con passkey».",
+                  )
+                }
+                className={buttonPrimary}
+              >
+                Crear passkey (Face ID)
+              </button>
+              <p className="text-xs text-muted">
+                Con la passkey entrarás con Face ID, también desde la app instalada en la pantalla
+                de inicio.
+              </p>
+            </>
           )}
           <button
             type="button"
@@ -83,20 +88,20 @@ export function AccountCard() {
               Entrar con passkey (Face ID)
             </button>
           )}
-          {!codeSent ? (
+          {!linkSent ? (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 run(async () => {
-                  const result = await sendCode(email);
-                  if (result.ok) setCodeSent(true);
+                  const result = await sendLoginLink(email);
+                  if (result.ok) setLinkSent(true);
                   return result;
-                }, "Si el email es correcto, te hemos enviado un código.");
+                });
               }}
               className="space-y-2"
             >
               <label htmlFor="email" className="text-sm font-medium">
-                O con un código por email
+                ¿Primera vez? Te enviamos un enlace de acceso
               </label>
               <input
                 id="email"
@@ -116,44 +121,29 @@ export function AccountCard() {
                 disabled={pending || !email}
                 className={`${buttonSecondary} w-full`}
               >
-                Enviarme un código
+                Enviarme el enlace
               </button>
             </form>
           ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                run(() => verifyCode(email, code));
-              }}
-              className="space-y-2"
-            >
-              <label htmlFor="code" className="text-sm font-medium">
-                Código de 6 dígitos
-              </label>
-              <input
-                id="code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]*"
-                maxLength={10}
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                className={`${inputClass} tracking-[0.4em]`}
-              />
-              <button type="submit" disabled={pending || !code} className={buttonPrimary}>
-                Entrar
-              </button>
+            <div role="status" className="space-y-2 rounded-xl bg-accent-soft p-4 text-sm">
+              <p className="font-semibold">Revisa tu correo</p>
+              <ol className="list-decimal space-y-1 pl-5">
+                <li>Abre el enlace en este iPhone (se abrirá en Safari).</li>
+                <li>
+                  En Safari, ve a Ajustes de WellPlan y pulsa <strong>Crear passkey</strong>.
+                </li>
+                <li>
+                  Vuelve a la app instalada y pulsa <strong>Entrar con passkey</strong>.
+                </li>
+              </ol>
               <button
                 type="button"
-                onClick={() => {
-                  setCodeSent(false);
-                  setCode("");
-                }}
-                className="min-h-11 w-full text-sm font-medium text-muted underline"
+                onClick={() => setLinkSent(false)}
+                className="min-h-11 font-medium underline"
               >
                 Usar otro email
               </button>
-            </form>
+            </div>
           )}
         </div>
       )}

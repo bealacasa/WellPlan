@@ -82,6 +82,8 @@ export default defineConfig(({ mode }) => {
       setupFiles: ["./src/test/setup.ts"],
       include: ["src/**/*.test.{ts,tsx}"],
       restoreMocks: true,
+      // Los tests nunca usan el Supabase real aunque exista .env.local.
+      env: { VITE_SUPABASE_URL: "", VITE_SUPABASE_PUBLISHABLE_KEY: "" },
     },
   };
 });

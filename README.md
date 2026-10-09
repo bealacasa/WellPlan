@@ -26,9 +26,12 @@ Sin `.env.local` la app funciona solo en local (sin nube).
    npx supabase link --project-ref <ref>
    npx supabase db push
    ```
-4. Authentication → URL Configuration: Site URL `https://bealacasa.github.io/WellPlan/`.
-5. Authentication → Email Templates (Magic Link): usa `supabase/templates/otp.html` (código de 6 dígitos).
-6. Authentication → Passkeys: actívalas con Relying Party `bealacasa.github.io`.
+4. Authentication → URL Configuration: Site URL y Redirect URL `https://bealacasa.github.io/WellPlan/`
+   (y `http://localhost:5173/WellPlan/` para desarrollo).
+5. Authentication → Passkeys: actívalas con Relying Party `bealacasa.github.io`.
+6. Primer acceso: enlace por email (plantilla estándar) abierto en Safari → Ajustes → **Crear passkey**.
+   La passkey se guarda en el llavero de iCloud y sirve también en la app instalada.
+   (Con un SMTP propio se puede usar `supabase/templates/otp.html` para enviar un código.)
 7. En GitHub → Settings → Secrets and variables → Actions → **Variables**: añade
    `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`.
 
