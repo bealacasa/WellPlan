@@ -78,3 +78,29 @@ describe("sesiones y plan", () => {
     expect(await db.sessions.count()).toBe(0);
   });
 });
+
+describe("Hoy con sesiones plegables", () => {
+  it("empiezan plegadas con el siguiente ejercicio y se despliegan al tocarlas", async () => {
+    const { createSession } = await import("@/db/repositories/sessions");
+    const { addToDay } = await import("@/db/repositories/plan");
+    const { isoWeekday } = await import("@/lib/dates");
+    const ids = [await exercise("Sentadilla"), await exercise("Hip thrust")];
+    const sessionId = await createSession({ name: "Glúteo", exerciseIds: ids });
+    await addToDay(isoWeekday(new Date()), { sessionId });
+    sessionStorage.clear();
+
+    const user = userEvent.setup();
+    render(
+      <RouterProvider router={createMemoryRouter(router.routes, { initialEntries: ["/"] })} />,
+    );
+    const header = await screen.findByRole("button", { name: /Glúteo/ });
+    expect(header.getAttribute("aria-expanded")).toBe("false");
+    expect(header.textContent).toContain("Siguiente: Sentadilla");
+    expect(screen.queryByRole("list", { name: "Glúteo" })).toBeNull();
+
+    await user.click(header);
+    expect(header.getAttribute("aria-expanded")).toBe("true");
+    const list = screen.getByRole("list", { name: "Glúteo" });
+    expect(within(list).getAllByRole("link")).toHaveLength(2);
+  });
+});

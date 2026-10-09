@@ -1,10 +1,11 @@
+import { useId, useState } from "react";
 import { Link } from "react-router";
 import { ExercisePhoto } from "@/components/ExercisePhoto";
 import { TypeChip } from "@/components/typeStyle";
 import { Card, buttonPrimary } from "@/components/ui";
 import { useTodayPlan, type TodayPlan } from "@/db/repositories/today";
 import type { Exercise } from "@/db/types";
-import { weekdayLabel } from "@/lib/dates";
+import { localDateKey, weekdayLabel } from "@/lib/dates";
 import { EXERCISE_TYPE_LABEL, targetLabel } from "@/lib/labels";
 import { PasskeyNudge } from "@/sync/PasskeyNudge";
 
@@ -13,6 +14,7 @@ export function TodayPage() {
   const plan = useTodayPlan(now);
   const all = plan?.items.flatMap((item) => item.exercises) ?? [];
   const done = all.filter((e) => plan?.done.has(e.id)).length;
+  const [openIds, toggle] = useOpenSessions(localDateKey(now));
 
   return (
     <>
@@ -23,33 +25,157 @@ export function TodayPage() {
         <NothingToday plan={plan} />
       ) : (
         <div className="space-y-4">
-          {plan.items.map((item) => (
-            <Card key={item.entryId}>
-              {item.kind === "session" && (
-                <div className="mb-4 flex items-baseline justify-between gap-3">
-                  <h2 className="text-2xl font-extrabold tracking-tight">{item.title}</h2>
-                  <span className="shrink-0 text-sm font-semibold text-muted tabular-nums">
-                    {item.exercises.filter((e) => plan.done.has(e.id)).length}/
-                    {item.exercises.length}
-                  </span>
-                </div>
-              )}
-              <ol className="space-y-2" aria-label={item.title}>
-                {item.exercises.map((exercise, index) => (
-                  <li key={exercise.id}>
-                    <ExerciseRow
-                      exercise={exercise}
-                      index={item.kind === "session" ? index + 1 : null}
-                      isDone={plan.done.has(exercise.id)}
-                    />
-                  </li>
-                ))}
-              </ol>
-            </Card>
-          ))}
+          {plan.items.map((item) =>
+            item.kind === "session" ? (
+              <SessionCard
+                key={item.entryId}
+                title={item.title}
+                exercises={item.exercises}
+                done={plan.done}
+                open={openIds.has(item.entryId)}
+                onToggle={() => toggle(item.entryId)}
+              />
+            ) : (
+              <Card key={item.entryId}>
+                <ExerciseList title={item.title} exercises={item.exercises} done={plan.done} />
+              </Card>
+            ),
+          )}
         </div>
       )}
     </>
+  );
+}
+
+const OPEN_KEY = "wellplan:hoy-abiertas";
+
+/**
+ * Qué sesiones están desplegadas. Empiezan plegadas para no tener que hacer scroll; se
+ * recuerda durante el día (sessionStorage) para que, al volver de registrar un ejercicio,
+ * la sesión siga abierta. Si el almacenamiento falla, funciona igual pero sin recordar.
+ */
+function useOpenSessions(day: string): [Set<string>, (id: string) => void] {
+  const [open, setOpen] = useState<Set<string>>(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(OPEN_KEY) ?? "null") as {
+        day?: string;
+        ids?: unknown;
+      } | null;
+      if (saved?.day === day && Array.isArray(saved.ids)) {
+        return new Set(saved.ids.filter((id): id is string => typeof id === "string"));
+      }
+    } catch {
+      // Sin almacenamiento (modo privado, etc.): todo plegado.
+    }
+    return new Set();
+  });
+
+  const toggle = (id: string) => {
+    setOpen((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      try {
+        sessionStorage.setItem(OPEN_KEY, JSON.stringify({ day, ids: [...next] }));
+      } catch {
+        // Se pierde solo el recuerdo; el despliegue funciona igual.
+      }
+      return next;
+    });
+  };
+
+  return [open, toggle];
+}
+
+/** Sesión de hoy plegable: la cabecera muestra el progreso y el siguiente ejercicio. */
+function SessionCard({
+  title,
+  exercises,
+  done,
+  open,
+  onToggle,
+}: {
+  title: string;
+  exercises: Exercise[];
+  done: ReadonlySet<string>;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const listId = useId();
+  const doneCount = exercises.filter((e) => done.has(e.id)).length;
+  const complete = exercises.length > 0 && doneCount === exercises.length;
+  const next = exercises.find((e) => !done.has(e.id));
+
+  return (
+    <Card>
+      <h2>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls={listId}
+          className="flex min-h-11 w-full items-center gap-3 text-left"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-2xl font-extrabold tracking-tight">{title}</span>
+            {!open && (
+              <span className="mt-0.5 block truncate text-sm font-medium text-muted">
+                {complete
+                  ? "Completada"
+                  : next
+                    ? `Siguiente: ${next.name}`
+                    : `${exercises.length} ejercicios`}
+              </span>
+            )}
+          </span>
+          <span
+            className={`shrink-0 rounded-full px-2.5 py-1 text-sm font-bold tabular-nums ${
+              complete ? "bg-accent text-accent-contrast" : "bg-surface-2 text-muted"
+            }`}
+          >
+            {complete && <span aria-hidden="true">✓ </span>}
+            {doneCount}/{exercises.length}
+            <span className="sr-only"> hechos</span>
+          </span>
+          <span
+            aria-hidden="true"
+            className={`shrink-0 text-2xl text-muted transition-transform motion-reduce:transition-none ${
+              open ? "rotate-90" : ""
+            }`}
+          >
+            ›
+          </span>
+        </button>
+      </h2>
+      <div id={listId} hidden={!open} className="mt-4">
+        <ExerciseList title={title} exercises={exercises} done={done} numbered />
+      </div>
+    </Card>
+  );
+}
+
+function ExerciseList({
+  title,
+  exercises,
+  done,
+  numbered = false,
+}: {
+  title: string;
+  exercises: Exercise[];
+  done: ReadonlySet<string>;
+  numbered?: boolean;
+}) {
+  return (
+    <ol className="space-y-2" aria-label={title}>
+      {exercises.map((exercise, index) => (
+        <li key={exercise.id}>
+          <ExerciseRow
+            exercise={exercise}
+            index={numbered ? index + 1 : null}
+            isDone={done.has(exercise.id)}
+          />
+        </li>
+      ))}
+    </ol>
   );
 }
 
