@@ -11,9 +11,12 @@ const TABS = [
   { to: "/ajustes", label: "Ajustes", Icon: SettingsIcon, end: false },
 ] as const;
 
-/** Las sesiones viven dentro de la pestaña Ejercicios: también la iluminan. */
-const isSessionsPath = (to: string, pathname: string) =>
-  to === "/ejercicios" && pathname.startsWith("/sesiones");
+/** Pantallas que cuelgan de una pestaña sin estar bajo su ruta: también la iluminan. */
+const ALSO_ACTIVE: Record<string, string> = { "/ejercicios": "/sesiones", "/": "/progreso" };
+const isAlsoActive = (to: string, pathname: string) => {
+  const extra = ALSO_ACTIVE[to];
+  return extra !== undefined && pathname.startsWith(extra);
+};
 
 export function Layout() {
   const { atRisk } = useAlerts();
@@ -39,12 +42,12 @@ export function Layout() {
                 end={end}
                 className={({ isActive }) =>
                   `flex min-h-16 flex-col items-center justify-center gap-0.5 text-xs font-bold ${
-                    isActive || isSessionsPath(to, pathname) ? "text-accent" : "text-muted"
+                    isActive || isAlsoActive(to, pathname) ? "text-accent" : "text-muted"
                   }`
                 }
               >
                 {({ isActive: exact }) => {
-                  const isActive = exact || isSessionsPath(to, pathname);
+                  const isActive = exact || isAlsoActive(to, pathname);
                   return (
                     <>
                       <span

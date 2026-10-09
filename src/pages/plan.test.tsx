@@ -191,3 +191,41 @@ describe("objetivo del día para cardio", () => {
     expect((await db.exercises.get(id))?.targetDistanceKm).toBe(5);
   });
 });
+
+describe("clases en el plan", () => {
+  it("se pueden quitar del día (dejan de estar marcadas) sin borrarlas del horario", async () => {
+    const { createGymClasses, setAttending } = await import("@/db/repositories/gymClasses");
+    const [id] = await createGymClasses(
+      { name: "Pilates", startTime: "18:15", durationMin: 45, room: "", instructor: "" },
+      [2],
+    );
+    await setAttending(id!, true);
+    const user = userEvent.setup();
+    render(
+      <RouterProvider router={createMemoryRouter(router.routes, { initialEntries: ["/plan"] })} />,
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Quitar la clase de Pilates del martes" }),
+    );
+    await vi.waitFor(async () =>
+      expect(await db.gymClasses.get(id!)).toMatchObject({ attending: false, deletedAt: null }),
+    );
+  });
+});
+
+describe("pantalla de progreso", () => {
+  it("se abre desde Hoy y muestra la semana", async () => {
+    const { addLog } = await import("@/db/repositories/weightLogs");
+    const { localDateKey } = await import("@/lib/dates");
+    const id = await exercise("Prensa");
+    await addLog(id, { date: localDateKey(new Date()), kg: 20, sets: 3, reps: 12, note: null });
+    const user = userEvent.setup();
+    render(
+      <RouterProvider router={createMemoryRouter(router.routes, { initialEntries: ["/"] })} />,
+    );
+    await user.click(await screen.findByRole("link", { name: /Tu progreso/ }));
+    expect(await screen.findByRole("heading", { name: "Progreso", level: 1 })).toBeTruthy();
+    expect(screen.getByText("1 día")).toBeTruthy();
+    expect(screen.getByText(/Racha: 1 semana/)).toBeTruthy();
+  });
+});

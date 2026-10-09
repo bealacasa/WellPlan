@@ -13,6 +13,10 @@ export const router = createBrowserRouter(
       children: [
         { index: true, element: <TodayPage /> },
         {
+          path: "progreso",
+          lazy: async () => ({ Component: (await import("@/pages/ProgressPage")).ProgressPage }),
+        },
+        {
           path: "plan",
           lazy: async () => ({ Component: (await import("@/pages/PlanPage")).PlanPage }),
         },

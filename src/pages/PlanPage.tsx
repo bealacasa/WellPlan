@@ -2,7 +2,7 @@ import { Link, useNavigate } from "react-router";
 import { TYPE_STYLE } from "@/components/typeStyle";
 import { EmptyState, PageHeader, buttonPrimary } from "@/components/ui";
 import { useExercises } from "@/db/repositories/exercises";
-import { useGymClasses } from "@/db/repositories/gymClasses";
+import { setAttending, useGymClasses } from "@/db/repositories/gymClasses";
 import {
   WEEKDAYS,
   addToDay,
@@ -139,14 +139,26 @@ function DayCard({
       {classes.length > 0 && (
         <ul className="mt-2 space-y-2" aria-label={`Clases del ${weekdayName(weekday)}`}>
           {classes.map((c) => (
-            <li key={c.id}>
+            <li
+              key={c.id}
+              className="flex items-center gap-2 rounded-2xl bg-accent-soft py-1 pl-3 pr-1 font-bold"
+            >
               <Link
                 to={`/horario?dia=${weekday}`}
-                className="flex min-h-11 items-center gap-2 rounded-2xl bg-accent-soft px-3 font-bold"
+                className="flex min-h-11 flex-1 items-center gap-2"
               >
                 <span className="text-accent tabular-nums">{c.startTime}</span>
                 {c.name}
               </Link>
+              {/* Solo deja de estar marcada con "Voy": la clase sigue en el horario. */}
+              <button
+                type="button"
+                onClick={() => void setAttending(c.id, false)}
+                aria-label={`Quitar la clase de ${c.name} del ${name}`}
+                className="grid size-11 place-items-center rounded-lg font-bold"
+              >
+                ✕
+              </button>
             </li>
           ))}
         </ul>

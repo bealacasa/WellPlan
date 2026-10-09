@@ -4,6 +4,7 @@ import { ExercisePhoto } from "@/components/ExercisePhoto";
 import { SessionPhoto } from "@/components/SessionPhoto";
 import { TypeChip } from "@/components/typeStyle";
 import { Card, buttonPrimary } from "@/components/ui";
+import { streakLabel, useProgress, weekSummary } from "@/db/repositories/progress";
 import { useTodayPlan, type TodayPlan } from "@/db/repositories/today";
 import type { Exercise } from "@/db/types";
 import { localDateKey } from "@/lib/dates";
@@ -54,7 +55,31 @@ export function TodayPage() {
           )}
         </div>
       )}
+      {plan?.hasExercises && <ProgressLink today={now} />}
     </>
+  );
+}
+
+/** Resumen de la semana con enlace a la pantalla de Progreso. */
+function ProgressLink({ today }: { today: Date }) {
+  const progress = useProgress(today);
+  if (!progress) return null;
+  return (
+    <Link
+      to="/progreso"
+      className="mt-4 flex min-h-16 items-center gap-3 rounded-3xl border border-border bg-surface p-4 shadow-sm active:scale-[0.99]"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block font-bold">Tu progreso</span>
+        <span className="block text-sm text-muted">
+          Esta semana: {weekSummary(progress)}
+          {progress.streak > 0 && ` · racha de ${streakLabel(progress.streak)}`}
+        </span>
+      </span>
+      <span aria-hidden="true" className="text-2xl text-muted">
+        ›
+      </span>
+    </Link>
   );
 }
 

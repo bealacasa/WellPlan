@@ -40,3 +40,19 @@ const SHORT = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"] as const;
 export function weekdayShort(weekday: number): string {
   return SHORT[weekday - 1] ?? "";
 }
+
+/** Fecha local a mediodía a partir de "YYYY-MM-DD" (mediodía: sin saltos por cambio de hora). */
+export function fromDateKey(key: string): Date {
+  const [y = 1970, m = 1, d = 1] = key.split("-").map(Number);
+  return new Date(y, m - 1, d, 12);
+}
+
+export function addDays(date: Date, days: number): Date {
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + days, 12);
+  return next;
+}
+
+/** Lunes de la semana de esa fecha. */
+export function startOfWeek(date: Date): Date {
+  return addDays(date, 1 - isoWeekday(date));
+}
