@@ -153,7 +153,12 @@ function SessionCard({
           aria-controls={listId}
           className="flex min-h-11 w-full items-center gap-3 text-left"
         >
-          {photoId && <SessionPhoto photoId={photoId} className="size-14 shrink-0 rounded-xl" />}
+          <SessionPhoto
+            photoId={photoId}
+            name={title}
+            exerciseNames={exercises.map((e) => e.name)}
+            className="size-14 shrink-0 rounded-xl"
+          />
           <span className="min-w-0 flex-1">
             <span className="block text-2xl font-extrabold tracking-tight">{title}</span>
             {!open && (

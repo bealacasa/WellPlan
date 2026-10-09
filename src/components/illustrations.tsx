@@ -93,6 +93,63 @@ const SidePlank = (p: Props) => (
   </Figure>
 );
 
+/** Spinning: en la bici estática, inclinada hacia el manillar. */
+const Spinning = (p: Props) => (
+  <Figure {...p}>
+    <circle cx="20" cy="9" r="3.5" />
+    <path d="M22 13l10 11M23 15l-8 5M32 24l-6 7 2 6" />
+    <circle cx="11" cy="33" r="5" strokeWidth={2.5} />
+    <path d="M15 20l-2 7M11 33l17 4M29 25h6M32 25l-3 12M6 42h32" strokeWidth={2.5} />
+  </Figure>
+);
+
+/** Body Pump: barra con discos sobre los hombros. */
+const BodyPump = (p: Props) => (
+  <Figure {...p}>
+    <circle cx="24" cy="9" r="3.5" />
+    <path d="M5 15h38" strokeWidth={2.5} />
+    <path d="M8 10v10M40 10v10" strokeWidth={4} />
+    <path d="M24 13v15M24 18l-6-3M24 18l6-3M24 28l-6 7v6M24 28l6 7v6" />
+    <Floor />
+  </Figure>
+);
+
+/** GAP (glúteos, abdominales y piernas): zancada. */
+const Lunge = (p: Props) => (
+  <Figure {...p}>
+    <circle cx="22" cy="8" r="3.5" />
+    <path d="M22 12v14M22 16l-5 5 5 3M22 26l10 2v13M22 26l-6 10-8 4" />
+    <Floor />
+  </Figure>
+);
+
+/** Pilates: el "teaser", sentada en V con los brazos hacia los pies. */
+const Pilates = (p: Props) => (
+  <Figure {...p}>
+    <circle cx="11" cy="13" r="3.5" />
+    <path d="M14 18l10 17 14-17M15 21l14-6" />
+    <Floor y={38} />
+  </Figure>
+);
+
+/** Yoga: postura del árbol, manos unidas sobre la cabeza. */
+const Yoga = (p: Props) => (
+  <Figure {...p}>
+    <circle cx="24" cy="10" r="3.5" />
+    <path d="M24 14v14M24 18l-6-8 6-6 6 6-6 8M24 28v14M24 28l8 6-8 3" />
+    <Floor y={43} />
+  </Figure>
+);
+
+/** Zumba o baile: un brazo arriba y una pierna en movimiento. */
+const Dance = (p: Props) => (
+  <Figure {...p}>
+    <circle cx="21" cy="8" r="3.5" />
+    <path d="M22 12l2 14M23 16l-9-8M23 16l11 4M24 26l-5 15M24 26l9 7 6-3" />
+    <Floor />
+  </Figure>
+);
+
 const normalize = (s: string) =>
   s
     .normalize("NFD")
@@ -107,6 +164,12 @@ const FIGURES = {
   hip_thrust: HipThrust,
   leg_press: LegPress,
   donkey_kick: DonkeyKick,
+  spinning: Spinning,
+  body_pump: BodyPump,
+  lunge: Lunge,
+  pilates: Pilates,
+  yoga: Yoga,
+  dance: Dance,
 } as const;
 
 export type IllustrationKey = keyof typeof FIGURES;
@@ -120,12 +183,46 @@ const MATCHERS: [RegExp, IllustrationKey][] = [
   [/hip ?th?rust|puente de gluteo|glute bridge/, "hip_thrust"],
   [/prensa|leg press/, "leg_press"],
   [/patada|kickback|donkey/, "donkey_kick"],
+  // Clases del gimnasio.
+  [/spinning|ciclo|bici|cycling/, "spinning"],
+  [/body ?pump|pump/, "body_pump"],
+  [/\bgap\b|zancada|lunge/, "lunge"],
+  [/pilates/, "pilates"],
+  [/yoga/, "yoga"],
+  [/zumba|baile|dance|bachata|salsa/, "dance"],
 ];
 
 /** Clave de la ilustración para un nombre de ejercicio, o null si no hay ninguna. */
 export function illustrationFor(name: string): IllustrationKey | null {
   const key = normalize(name);
   return MATCHERS.find(([pattern]) => pattern.test(key))?.[1] ?? null;
+}
+
+// Sesiones: palabras habituales en sus nombres ("Glúteo", "Pierna + core"…).
+const SESSION_MATCHERS: [RegExp, IllustrationKey][] = [
+  [/glute|gluteo/, "hip_thrust"],
+  [/pierna|leg/, "squat"],
+  [/core|abdom|abs\b/, "plank"],
+  [/espalda|back/, "deadlift"],
+  [/brazo|hombro|pecho|superior|upper|arm/, "body_pump"],
+  [/estira|movilidad|stretch|flexib/, "yoga"],
+];
+
+/**
+ * Ilustración de una sesión sin foto: por su nombre o, si no dice nada, la del primer
+ * ejercicio de la sesión que tenga una.
+ */
+export function sessionIllustrationFor(
+  name: string,
+  exerciseNames: readonly string[],
+): IllustrationKey | null {
+  const key = normalize(name);
+  return (
+    illustrationFor(name) ??
+    SESSION_MATCHERS.find(([pattern]) => pattern.test(key))?.[1] ??
+    exerciseNames.map(illustrationFor).find((k) => k !== null) ??
+    null
+  );
 }
 
 /** Dibuja la ilustración indicada. */

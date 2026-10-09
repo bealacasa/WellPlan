@@ -204,7 +204,23 @@ describe("ilustraciones y series por tiempo", () => {
     expect(illustrationFor("Patadas traseras")).toBe("donkey_kick");
     expect(illustrationFor("PLANCHA LATERAL")).toBe("side_plank");
     expect(illustrationFor("Plancha frontal")).toBe("plank");
-    expect(illustrationFor("Yoga")).toBeNull();
+    expect(illustrationFor("Spinning")).toBe("spinning");
+    expect(illustrationFor("Body Pump")).toBe("body_pump");
+    expect(illustrationFor("GAP")).toBe("lunge");
+    expect(illustrationFor("Pilates suelo")).toBe("pilates");
+    expect(illustrationFor("Yoga")).toBe("yoga");
+    expect(illustrationFor("Zumba")).toBe("dance");
+    // "gap" solo como palabra suelta, no dentro de otra.
+    expect(illustrationFor("Estiramiento de isquios")).toBeNull();
+    expect(illustrationFor("Remo")).toBeNull();
+  });
+
+  it("las sesiones sin foto toman el dibujo de su nombre o de su primer ejercicio", async () => {
+    const { sessionIllustrationFor } = await import("@/components/illustrations");
+    expect(sessionIllustrationFor("Glúteo", [])).toBe("hip_thrust");
+    expect(sessionIllustrationFor("Pierna + core", [])).toBe("squat");
+    expect(sessionIllustrationFor("Lunes", ["Remo", "Plancha frontal"])).toBe("plank");
+    expect(sessionIllustrationFor("Lunes", ["Remo"])).toBeNull();
   });
 
   it("resume una serie aguantada en segundos", async () => {
