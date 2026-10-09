@@ -126,3 +126,40 @@ describe("shouldApplyRemote", () => {
     expect(shouldApplyRemote(local, "2026-10-09T11:00:00Z")).toBe(true);
   });
 });
+
+describe("horario del gimnasio", () => {
+  it("las clases se sincronizan con su hora y su marca de «voy»", async () => {
+    const { createGymClasses, setAttending } = await import("@/db/repositories/gymClasses");
+    const cloud = fakeCloud();
+    const [id] = await createGymClasses(
+      { name: "Pilates", startTime: "18:30", durationMin: 55, room: "Sala 2", instructor: "" },
+      [1],
+    );
+    await setAttending(id!, true);
+    await syncOnce(db, cloud.client, USER);
+    // Postgres devuelve el tipo time con segundos.
+    cloud.tables.gym_classes!.get(id!)!.start_time = "18:30:00";
+
+    await syncOnce(otherDevice, cloud.client, USER);
+    const received = await otherDevice.gymClasses.get(id!);
+    expect(received).toMatchObject({ startTime: "18:30", attending: true, durationMin: 55 });
+    expect(await otherDevice.exercises.get(received!.exerciseId!)).toMatchObject({
+      name: "Pilates",
+      type: "clase",
+    });
+  });
+
+  it("si falta la migración del horario, el resto se sincroniza igual", async () => {
+    const { createGymClasses } = await import("@/db/repositories/gymClasses");
+    const cloud = fakeCloud({ missingTables: ["gym_classes"] });
+    await createExercise(exerciseInput);
+    await createGymClasses(
+      { name: "Yoga", startTime: "09:00", durationMin: 60, room: "", instructor: "" },
+      [2],
+    );
+    await syncOnce(db, cloud.client, USER);
+    expect(cloud.tables.exercises?.size).toBe(1);
+    // La clase sigue pendiente de subir hasta que exista la tabla.
+    expect(await pendingCount(db)).toBe(1);
+  });
+});

@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { Exercise, MetaEntry, Photo, PlanEntry, Session, WeightLog } from "./types";
+import type { Exercise, GymClass, MetaEntry, Photo, PlanEntry, Session, WeightLog } from "./types";
 
 /**
  * Base de datos local (IndexedDB vía Dexie). Es la fuente de verdad de la interfaz:
@@ -14,6 +14,7 @@ export class WellPlanDB extends Dexie {
   weightLogs!: EntityTable<WeightLog, "id">;
   sessions!: EntityTable<Session, "id">;
   planEntries!: EntityTable<PlanEntry, "id">;
+  gymClasses!: EntityTable<GymClass, "id">;
   meta!: EntityTable<MetaEntry, "key">;
 
   constructor(name = "wellplan") {
@@ -57,6 +58,9 @@ export class WellPlanDB extends Dexie {
             p.exerciseId ??= null;
           });
       });
+
+    // v3: horario de clases del gimnasio (tabla nueva, sin datos que migrar).
+    this.version(3).stores({ gymClasses: "id, weekday, exerciseId, dirty" });
   }
 }
 
@@ -69,5 +73,6 @@ export const SYNCED_TABLES = [
   "weightLogs",
   "sessions",
   "planEntries",
+  "gymClasses",
 ] as const;
 export type SyncedTable = (typeof SYNCED_TABLES)[number];

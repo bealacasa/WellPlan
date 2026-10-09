@@ -39,6 +39,10 @@ export const router = createBrowserRouter(
           }),
         },
         {
+          path: "sesiones",
+          lazy: async () => ({ Component: (await import("@/pages/SessionsPage")).SessionsPage }),
+        },
+        {
           path: "sesiones/nueva",
           lazy: async () => ({
             Component: (await import("@/pages/SessionFormPage")).SessionFormPage,
@@ -48,6 +52,22 @@ export const router = createBrowserRouter(
           path: "sesiones/:id",
           lazy: async () => ({
             Component: (await import("@/pages/SessionFormPage")).SessionFormPage,
+          }),
+        },
+        {
+          path: "horario",
+          lazy: async () => ({ Component: (await import("@/pages/SchedulePage")).SchedulePage }),
+        },
+        {
+          path: "horario/nueva",
+          lazy: async () => ({
+            Component: (await import("@/pages/GymClassFormPage")).GymClassFormPage,
+          }),
+        },
+        {
+          path: "horario/:id",
+          lazy: async () => ({
+            Component: (await import("@/pages/GymClassFormPage")).GymClassFormPage,
           }),
         },
         {

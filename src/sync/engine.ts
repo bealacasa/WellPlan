@@ -5,6 +5,7 @@ import type { WellPlanDB } from "@/db/database";
 import type { Photo, Session, SyncFields } from "@/db/types";
 import {
   exerciseMapping,
+  gymClassMapping,
   photoMapping,
   photoPath,
   planMapping,
@@ -19,7 +20,8 @@ import { shouldApplyRemote } from "./merge";
  *   1. SUBIR: los registros con dirty = 1 se envían con upsert (insertar o actualizar por id).
  *   2. BAJAR: se piden las filas con server_updated_at >= último cursor y se fusionan.
  * El orden importa por las claves foráneas:
- *   fotos → ejercicios → registros de peso → sesiones (+ su lista de ejercicios) → plan.
+ *   fotos → ejercicios → registros de peso → sesiones (+ su lista de ejercicios) → plan
+ *   → horario del gimnasio.
  */
 
 export type SyncClient = Pick<SupabaseClient, "from" | "storage" | "rpc">;
@@ -35,11 +37,16 @@ export class AccountMismatchError extends Error {
   }
 }
 
-type LocalTable = "photos" | "exercises" | "weightLogs" | "sessions" | "planEntries";
+type LocalTable = "photos" | "exercises" | "weightLogs" | "sessions" | "planEntries" | "gymClasses";
 type TableSpec = {
   local: LocalTable;
   remote: string;
   toRemote: (record: never) => Record<string, unknown>;
+  /**
+   * Tabla añadida en una migración posterior: si aún no existe en Supabase, se salta
+   * (sus cambios se quedan pendientes en el dispositivo) en vez de parar toda la sincronización.
+   */
+  optional?: boolean;
 };
 
 const asSpec = (fn: (record: never) => Record<string, unknown>) => fn;
@@ -50,7 +57,17 @@ const TABLES: TableSpec[] = [
   { local: "weightLogs", remote: "weight_logs", toRemote: asSpec(weightLogMapping.toRemote) },
   { local: "sessions", remote: "sessions", toRemote: asSpec(sessionMapping.toRemote) },
   { local: "planEntries", remote: "week_plan", toRemote: asSpec(planMapping.toRemote) },
+  {
+    local: "gymClasses",
+    remote: "gym_classes",
+    toRemote: asSpec(gymClassMapping.toRemote),
+    optional: true,
+  },
 ];
+
+/** "La tabla no existe" (PostgREST PGRST205 / Postgres 42P01): falta ejecutar la migración. */
+const isMissingTable = (error: { code?: string } | null) =>
+  error?.code === "PGRST205" || error?.code === "42P01";
 
 function tableOf(db: WellPlanDB, name: LocalTable): Table<SyncFields, string> {
   return db[name] as unknown as Table<SyncFields, string>;
@@ -98,6 +115,7 @@ async function push(db: WellPlanDB, client: SyncClient, userId: string, spec: Ta
     if (spec.local === "photos") await pushPhotoFiles(client, userId, batch as Photo[]);
     const rows = batch.map((r) => spec.toRemote(r as never));
     const { error } = await client.from(spec.remote).upsert(rows, { onConflict: "id" });
+    if (spec.optional && isMissingTable(error)) return 0;
     if (error) throw error;
     if (spec.local === "sessions") await pushSessionExercises(client, batch as Session[]);
     // Solo se marca como subido si nadie lo ha vuelto a modificar mientras tanto.
@@ -158,6 +176,8 @@ async function toLocal(spec: TableSpec, raw: unknown, ctx: PullContext): Promise
       return weightLogMapping.fromRemote(raw);
     case "planEntries":
       return planMapping.fromRemote(raw);
+    case "gymClasses":
+      return gymClassMapping.fromRemote(raw);
     case "sessions": {
       const id = (raw as { id: string }).id;
       return sessionMapping.fromRemote(raw, ctx.sessionExercises.get(id) ?? []);
@@ -191,6 +211,7 @@ async function pull(db: WellPlanDB, client: SyncClient, userId: string, spec: Ta
       .gte("server_updated_at", cursor)
       .order("server_updated_at", { ascending: true })
       .limit(PAGE);
+    if (spec.optional && isMissingTable(error)) return applied;
     if (error) throw error;
     const rows = (data ?? []) as {
       id: string;

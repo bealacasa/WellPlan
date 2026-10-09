@@ -1,11 +1,12 @@
 import { Link } from "react-router";
 import { TYPE_STYLE } from "@/components/typeStyle";
-import { EmptyState, PageHeader, buttonPrimary, buttonSecondary } from "@/components/ui";
+import { EmptyState, PageHeader, buttonPrimary } from "@/components/ui";
 import { useExercises } from "@/db/repositories/exercises";
+import { useGymClasses } from "@/db/repositories/gymClasses";
 import { WEEKDAYS, addToDay, removeFromDay, useWeekPlan } from "@/db/repositories/plan";
 import { useSessions } from "@/db/repositories/sessions";
-import type { Exercise, Session } from "@/db/types";
-import { isoWeekday, weekdayName, weekdayShort } from "@/lib/dates";
+import type { Exercise, GymClass, Session } from "@/db/types";
+import { isoWeekday, weekdayName } from "@/lib/dates";
 
 /** Una entrada del día ya resuelta: sesión o ejercicio suelto. */
 type DayEntry =
@@ -16,15 +17,14 @@ export function PlanPage() {
   const plan = useWeekPlan();
   const sessions = useSessions();
   const exercises = useExercises();
-  if (!plan || !sessions || !exercises) return null;
+  const classes = useGymClasses();
+  if (!plan || !sessions || !exercises || !classes) return null;
 
   const sessionById = new Map(sessions.map((s) => [s.id, s]));
   const exerciseById = new Map(exercises.map((e) => [e.id, e]));
   const today = isoWeekday(new Date());
-  const daysOf = (sessionId: string) =>
-    WEEKDAYS.filter((d) => plan[d]?.some((e) => e.sessionId === sessionId)).map(weekdayShort);
 
-  if (sessions.length === 0 && exercises.length === 0) {
+  if (sessions.length === 0 && exercises.length === 0 && classes.length === 0) {
     return (
       <>
         <PageHeader title="Plan semanal" subtitle="Qué toca cada día." />
@@ -42,7 +42,7 @@ export function PlanPage() {
     <>
       <PageHeader
         title="Plan semanal"
-        subtitle="Qué toca cada día: sesiones o ejercicios sueltos."
+        subtitle="Qué toca cada día: sesiones, ejercicios sueltos y clases."
       />
 
       <ul className="space-y-2" aria-label="Días de la semana">
@@ -59,42 +59,24 @@ export function PlanPage() {
               const session = entry.sessionId ? sessionById.get(entry.sessionId) : undefined;
               return session ? [{ entryId: entry.id, kind: "session", session }] : [];
             })}
+            classes={classes.filter((c) => c.weekday === day && c.attending)}
             sessions={sessions}
             exercises={exercises}
           />
         ))}
       </ul>
 
-      <section className="mt-8" aria-labelledby="sesiones">
-        <h2 id="sesiones" className="text-xl font-bold">
-          Sesiones
-        </h2>
-        <p className="mb-3 text-sm text-muted">
-          Grupos de ejercicios en orden, como «Pierna + core».
-        </p>
-        <Link to="/sesiones/nueva" className={`${buttonSecondary} mb-3 w-full`}>
-          + Nueva sesión
+      <p className="mt-6 text-center text-sm text-muted">
+        Las sesiones se crean en{" "}
+        <Link to="/sesiones" className="font-semibold text-accent underline">
+          Ejercicios → Sesiones
+        </Link>{" "}
+        y las clases del gimnasio en{" "}
+        <Link to="/horario" className="font-semibold text-accent underline">
+          Horario
         </Link>
-        <ul className="space-y-2">
-          {sessions.map((s) => {
-            const days = daysOf(s.id);
-            return (
-              <li key={s.id}>
-                <Link
-                  to={`/sesiones/${s.id}`}
-                  className="block min-h-16 rounded-3xl border border-border bg-surface p-4 shadow-sm active:scale-[0.99]"
-                >
-                  <span className="block text-lg font-bold">{s.name}</span>
-                  <span className="block text-sm text-muted">
-                    {s.exerciseIds.length} {s.exerciseIds.length === 1 ? "ejercicio" : "ejercicios"}
-                    {days.length > 0 ? ` · ${days.join(", ")}` : " · sin día asignado"}
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+        .
+      </p>
     </>
   );
 }
@@ -103,12 +85,14 @@ function DayCard({
   weekday,
   isToday,
   entries,
+  classes,
   sessions,
   exercises,
 }: {
   weekday: number;
   isToday: boolean;
   entries: DayEntry[];
+  classes: GymClass[];
   sessions: Session[];
   exercises: Exercise[];
 }) {
@@ -134,8 +118,23 @@ function DayCard({
           </span>
         )}
       </h3>
+      {classes.length > 0 && (
+        <ul className="mt-2 space-y-2" aria-label={`Clases del ${weekdayName(weekday)}`}>
+          {classes.map((c) => (
+            <li key={c.id}>
+              <Link
+                to={`/horario?dia=${weekday}`}
+                className="flex min-h-11 items-center gap-2 rounded-2xl bg-accent-soft px-3 font-bold"
+              >
+                <span className="text-accent tabular-nums">{c.startTime}</span>
+                {c.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
       {entries.length === 0 ? (
-        <p className="mt-1 text-sm text-muted">Descanso</p>
+        classes.length === 0 && <p className="mt-1 text-sm text-muted">Descanso</p>
       ) : (
         <ul className="mt-2 space-y-2">
           {entries.map((entry) => {

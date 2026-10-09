@@ -31,8 +31,8 @@ export function SessionFormPage() {
     return (
       <>
         <PageHeader title="Sesión no encontrada" />
-        <Link to="/plan" className="underline">
-          Volver al plan
+        <Link to="/sesiones" className="underline">
+          Volver a las sesiones
         </Link>
       </>
     );
@@ -69,7 +69,7 @@ function SessionForm({ session, catalog }: { session: Session | null; catalog: E
     try {
       if (session) await updateSession(session.id, parsed.data);
       else await createSession(parsed.data);
-      navigate("/plan", { replace: true });
+      navigate("/sesiones", { replace: true });
     } catch {
       setError("No se pudo guardar. Inténtalo de nuevo.");
       setSaving(false);
@@ -85,13 +85,16 @@ function SessionForm({ session, catalog }: { session: Session | null; catalog: E
     });
     if (!ok) return;
     await deleteSession(session.id);
-    navigate("/plan", { replace: true });
+    navigate("/sesiones", { replace: true });
   }
 
   return (
     <>
-      <Link to="/plan" className="mb-2 inline-flex min-h-11 items-center font-medium text-muted">
-        ← Plan
+      <Link
+        to="/sesiones"
+        className="mb-2 inline-flex min-h-11 items-center font-medium text-muted"
+      >
+        ← Sesiones
       </Link>
       <PageHeader title={session ? "Editar sesión" : "Nueva sesión"} />
       <form onSubmit={save} className="space-y-6" noValidate>

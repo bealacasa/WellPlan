@@ -66,3 +66,15 @@ export const sessionInputSchema = z.object({
 });
 
 export type SessionInput = z.infer<typeof sessionInputSchema>;
+
+/** Clase del horario del gimnasio (mismos límites que en Postgres). */
+export const gymClassInputSchema = z.object({
+  name: z.string().trim().min(1, "Ponle un nombre a la clase.").max(80, "Máximo 80 caracteres."),
+  weekday: z.number().int().min(1).max(7),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Indica la hora de inicio."),
+  durationMin: z.number().int().min(5, "Mínimo 5 minutos.").max(300, "Máximo 300 minutos."),
+  room: z.string().trim().max(60, "Máximo 60 caracteres."),
+  instructor: z.string().trim().max(60, "Máximo 60 caracteres."),
+});
+
+export type GymClassInput = z.infer<typeof gymClassInputSchema>;

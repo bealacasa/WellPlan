@@ -30,6 +30,13 @@ export const PlanIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const ClockIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Svg>
+);
+
 export const ListIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M9 6h12M9 12h12M9 18h12" />

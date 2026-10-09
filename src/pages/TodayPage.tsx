@@ -37,6 +37,15 @@ export function TodayPage() {
               />
             ) : (
               <Card key={item.entryId}>
+                {item.kind === "class" && (
+                  <p className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-muted">
+                    <span className="rounded-full bg-accent-soft px-3 py-1 text-base font-bold text-accent tabular-nums">
+                      <span className="sr-only">Clase a las </span>
+                      {item.time}
+                    </span>
+                    {item.detail}
+                  </p>
+                )}
                 <ExerciseList title={item.title} exercises={item.exercises} done={plan.done} />
               </Card>
             ),
@@ -323,7 +332,7 @@ function NothingToday({ plan }: { plan: TodayPlan }) {
   const steps = [
     "Añade tus ejercicios con foto e indicaciones",
     "Si quieres, agrúpalos en sesiones (p. ej. «Pierna + core»)",
-    "Asigna sesiones o ejercicios a los días que entrenas",
+    "Asigna sesiones o ejercicios a los días que entrenas (o apúntate a clases en Horario)",
   ];
   return (
     <Card>

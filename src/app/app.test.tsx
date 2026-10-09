@@ -24,11 +24,11 @@ describe("navegación", () => {
     expect(screen.getByText(/La nube aún no está configurada/)).toBeTruthy();
   });
 
-  it("las 4 pestañas existen y la activa se marca", async () => {
+  it("las 5 pestañas existen y la activa se marca", async () => {
     const memory = createMemoryRouter(router.routes, { initialEntries: ["/plan"] });
     render(<RouterProvider router={memory} />);
     const nav = await screen.findByRole("navigation", { name: "Secciones" });
-    expect(nav.querySelectorAll("a")).toHaveLength(4);
+    expect(nav.querySelectorAll("a")).toHaveLength(5);
     expect(screen.getByRole("link", { name: "Plan" }).getAttribute("aria-current")).toBe("page");
   });
 });

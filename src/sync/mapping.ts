@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   EXERCISE_TYPES,
   type Exercise,
+  type GymClass,
   type Photo,
   type PlanEntry,
   type Session,
@@ -217,6 +218,50 @@ export const planMapping = {
       sessionId: row.session_id,
       exerciseId: row.exercise_id ?? null,
       position: row.position,
+    };
+  },
+};
+
+export const gymClassRowSchema = z.object({
+  ...syncColumns,
+  name: z.string().max(80),
+  weekday: z.number().int().min(1).max(7),
+  // Postgres devuelve el tipo time como "18:30:00": nos quedamos con "18:30".
+  start_time: z
+    .string()
+    .regex(/^\d{2}:\d{2}/)
+    .transform((t) => t.slice(0, 5)),
+  duration_min: z.number().int(),
+  room: z.string().max(60),
+  instructor: z.string().max(60),
+  attending: z.boolean(),
+  exercise_id: z.uuid().nullable(),
+});
+
+export const gymClassMapping = {
+  toRemote: (c: GymClass) => ({
+    ...syncToRemote(c),
+    name: c.name,
+    weekday: c.weekday,
+    start_time: c.startTime,
+    duration_min: c.durationMin,
+    room: c.room,
+    instructor: c.instructor,
+    attending: c.attending,
+    exercise_id: c.exerciseId,
+  }),
+  fromRemote: (raw: unknown): GymClass => {
+    const row = gymClassRowSchema.parse(raw);
+    return {
+      ...syncFromRemote(row),
+      name: row.name,
+      weekday: row.weekday,
+      startTime: row.start_time,
+      durationMin: row.duration_min,
+      room: row.room,
+      instructor: row.instructor,
+      attending: row.attending,
+      exerciseId: row.exercise_id,
     };
   },
 };

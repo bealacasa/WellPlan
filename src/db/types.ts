@@ -83,6 +83,22 @@ export type PlanEntry = SyncFields & {
   position: number;
 };
 
+/** Una clase del horario del gimnasio, un día de la semana a una hora. */
+export type GymClass = SyncFields & {
+  name: string;
+  /** 1 = lunes … 7 = domingo. */
+  weekday: number;
+  /** Hora de inicio "HH:MM" (24 h). */
+  startTime: string;
+  durationMin: number;
+  room: string;
+  instructor: string;
+  /** Marcada como "voy": sale en Hoy ese día. */
+  attending: boolean;
+  /** Ejercicio de tipo "clase" con el que se registra (se crea al marcarla). */
+  exerciseId: string | null;
+};
+
 export type MetaEntry = { key: string; value: unknown };
 
 /** Lo que el código de la app puede rellenar al crear un registro (el resto lo pone el repositorio). */

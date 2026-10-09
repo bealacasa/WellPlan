@@ -6,8 +6,9 @@ type Result = { data: Row[]; error: null };
 /**
  * Nube falsa en memoria: imita las partes de supabase-js que usa el motor de sync
  * (upsert, select con gte/in/order/limit, rpc set_session_exercises y Storage).
+ * `missingTables`: tablas que "aún no existen" (migración sin ejecutar).
  */
-export function fakeCloud() {
+export function fakeCloud({ missingTables = [] }: { missingTables?: string[] } = {}) {
   const tables: Record<string, Map<string, Row>> = {};
   const sessionExercises: Row[] = [];
   const files = new Map<string, Blob>();
@@ -54,6 +55,15 @@ export function fakeCloud() {
 
   const client = {
     from(name: string) {
+      if (missingTables.includes(name)) {
+        const missing = { data: null, error: { code: "PGRST205", message: "table not found" } };
+        const chain = {
+          gte: () => chain,
+          order: () => chain,
+          limit: async () => missing,
+        };
+        return { upsert: async () => missing, select: () => chain };
+      }
       if (name === "session_exercises") {
         return { select: () => query(() => sessionExercises) };
       }

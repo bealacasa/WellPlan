@@ -1,6 +1,7 @@
 import { useDeferredValue, useState } from "react";
 import { Link } from "react-router";
 import { ExercisePhoto } from "@/components/ExercisePhoto";
+import { LibraryTabs } from "@/components/LibraryTabs";
 import { TypeChip } from "@/components/typeStyle";
 import { EmptyState, PageHeader, buttonPrimary, inputClass } from "@/components/ui";
 import { useExercises } from "@/db/repositories/exercises";
@@ -21,6 +22,7 @@ export function ExercisesPage() {
   return (
     <>
       <PageHeader title="Ejercicios" subtitle="Los ejercicios que te ha mandado tu fisio." />
+      <LibraryTabs />
       <Link to="/ejercicios/nuevo" className={`${buttonPrimary} mb-5`}>
         + Añadir ejercicio
       </Link>

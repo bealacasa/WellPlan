@@ -5,6 +5,7 @@ import { notifyLocalChange } from "../changes";
 import { db } from "../database";
 import { createRecord, isAlive, tombstone, touch } from "../records";
 import type { Exercise, Photo, WeightLog } from "../types";
+import { unlinkExerciseFromClasses } from "./gymClasses";
 import { newPhoto } from "./photos";
 import { removeExerciseFromPlan } from "./plan";
 import { removeExerciseFromSessions } from "./sessions";
@@ -73,11 +74,14 @@ export async function updateExercise(
   notifyLocalChange();
 }
 
-/** Borra el ejercicio con su foto y su historial, y lo quita de las sesiones y del plan. */
+/**
+ * Borra el ejercicio con su foto y su historial, lo quita de las sesiones y del plan, y
+ * desmarca las clases del horario enlazadas con él.
+ */
 export async function deleteExercise(id: string): Promise<void> {
   await db.transaction(
     "rw",
-    [db.exercises, db.photos, db.weightLogs, db.sessions, db.planEntries],
+    [db.exercises, db.photos, db.weightLogs, db.sessions, db.planEntries, db.gymClasses],
     async () => {
       const current = await db.exercises.get(id);
       if (!isAlive(current)) return;
@@ -88,6 +92,7 @@ export async function deleteExercise(id: string): Promise<void> {
         await db.weightLogs.update(log.id, tombstone<WeightLog>());
       await removeExerciseFromSessions(id);
       await removeExerciseFromPlan(id);
+      await unlinkExerciseFromClasses(id);
     },
   );
   notifyLocalChange();
