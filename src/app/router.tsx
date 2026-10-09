@@ -39,6 +39,18 @@ export const router = createBrowserRouter(
           }),
         },
         {
+          path: "sesiones/nueva",
+          lazy: async () => ({
+            Component: (await import("@/pages/SessionFormPage")).SessionFormPage,
+          }),
+        },
+        {
+          path: "sesiones/:id",
+          lazy: async () => ({
+            Component: (await import("@/pages/SessionFormPage")).SessionFormPage,
+          }),
+        },
+        {
           path: "ajustes",
           lazy: async () => ({ Component: (await import("@/pages/SettingsPage")).SettingsPage }),
         },

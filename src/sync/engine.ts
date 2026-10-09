@@ -2,18 +2,27 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Table } from "dexie";
 import { getMeta, setMeta } from "@/db/meta";
 import type { WellPlanDB } from "@/db/database";
-import type { Photo, SyncFields } from "@/db/types";
-import { exerciseMapping, photoMapping, photoPath, weightLogMapping } from "./mapping";
+import type { Photo, Session, SyncFields } from "@/db/types";
+import {
+  exerciseMapping,
+  photoMapping,
+  photoPath,
+  planMapping,
+  sessionExerciseRowSchema,
+  sessionMapping,
+  weightLogMapping,
+} from "./mapping";
 import { shouldApplyRemote } from "./merge";
 
 /*
  * Motor de sincronización offline-first:
  *   1. SUBIR: los registros con dirty = 1 se envían con upsert (insertar o actualizar por id).
  *   2. BAJAR: se piden las filas con server_updated_at >= último cursor y se fusionan.
- * El orden importa por las claves foráneas: fotos → ejercicios → registros de peso.
+ * El orden importa por las claves foráneas:
+ *   fotos → ejercicios → registros de peso → sesiones (+ su lista de ejercicios) → plan.
  */
 
-export type SyncClient = Pick<SupabaseClient, "from" | "storage">;
+export type SyncClient = Pick<SupabaseClient, "from" | "storage" | "rpc">;
 
 const BATCH = 100;
 const PAGE = 500;
@@ -26,27 +35,24 @@ export class AccountMismatchError extends Error {
   }
 }
 
+type LocalTable = "photos" | "exercises" | "weightLogs" | "sessions" | "planEntries";
 type TableSpec = {
-  local: "photos" | "exercises" | "weightLogs";
+  local: LocalTable;
   remote: string;
   toRemote: (record: never) => Record<string, unknown>;
 };
 
+const asSpec = (fn: (record: never) => Record<string, unknown>) => fn;
+
 const TABLES: TableSpec[] = [
-  { local: "photos", remote: "photos", toRemote: photoMapping.toRemote as TableSpec["toRemote"] },
-  {
-    local: "exercises",
-    remote: "exercises",
-    toRemote: exerciseMapping.toRemote as TableSpec["toRemote"],
-  },
-  {
-    local: "weightLogs",
-    remote: "weight_logs",
-    toRemote: weightLogMapping.toRemote as TableSpec["toRemote"],
-  },
+  { local: "photos", remote: "photos", toRemote: asSpec(photoMapping.toRemote) },
+  { local: "exercises", remote: "exercises", toRemote: asSpec(exerciseMapping.toRemote) },
+  { local: "weightLogs", remote: "weight_logs", toRemote: asSpec(weightLogMapping.toRemote) },
+  { local: "sessions", remote: "sessions", toRemote: asSpec(sessionMapping.toRemote) },
+  { local: "planEntries", remote: "week_plan", toRemote: asSpec(planMapping.toRemote) },
 ];
 
-function tableOf(db: WellPlanDB, name: TableSpec["local"]): Table<SyncFields, string> {
+function tableOf(db: WellPlanDB, name: LocalTable): Table<SyncFields, string> {
   return db[name] as unknown as Table<SyncFields, string>;
 }
 
@@ -72,6 +78,18 @@ async function pushPhotoFiles(client: SyncClient, userId: string, photos: Photo[
   }
 }
 
+/** Guarda el orden de ejercicios de cada sesión con la función atómica de Postgres. */
+async function pushSessionExercises(client: SyncClient, sessions: Session[]) {
+  for (const session of sessions) {
+    if (session.deletedAt) continue;
+    const { error } = await client.rpc("set_session_exercises", {
+      p_session_id: session.id,
+      p_exercise_ids: session.exerciseIds,
+    });
+    if (error) throw error;
+  }
+}
+
 async function push(db: WellPlanDB, client: SyncClient, userId: string, spec: TableSpec) {
   const table = tableOf(db, spec.local);
   const pending = await table.where("dirty").equals(1).toArray();
@@ -81,6 +99,7 @@ async function push(db: WellPlanDB, client: SyncClient, userId: string, spec: Ta
     const rows = batch.map((r) => spec.toRemote(r as never));
     const { error } = await client.from(spec.remote).upsert(rows, { onConflict: "id" });
     if (error) throw error;
+    if (spec.local === "sessions") await pushSessionExercises(client, batch as Session[]);
     // Solo se marca como subido si nadie lo ha vuelto a modificar mientras tanto.
     const sent = new Map(batch.map((r) => [r.id, r.updatedAt]));
     await table
@@ -104,26 +123,59 @@ async function downloadPhoto(client: SyncClient, userId: string, id: string, mim
   return { full, thumb };
 }
 
-async function toLocal(
-  spec: TableSpec,
-  raw: unknown,
-  existing: SyncFields | undefined,
+/** Lista ordenada de ejercicios de varias sesiones (tabla intermedia session_exercises). */
+async function fetchSessionExercises(
   client: SyncClient,
-  userId: string,
-): Promise<SyncFields> {
-  if (spec.local === "exercises") return exerciseMapping.fromRemote(raw);
-  if (spec.local === "weightLogs") return weightLogMapping.fromRemote(raw);
-  const meta = photoMapping.fromRemote(raw);
-  const local = existing as Photo | undefined;
-  // Foto borrada: conservamos el registro (para no resucitarla) pero liberamos espacio.
-  // Si no, las fotos no cambian de contenido: si ya la tenemos, no se vuelve a descargar.
-  const files = meta.deletedAt
-    ? { full: new ArrayBuffer(0), thumb: new ArrayBuffer(0) }
-    : local?.full?.byteLength
-      ? { full: local.full, thumb: local.thumb }
-      : await downloadPhoto(client, userId, meta.id, meta.mime);
-  const photo: Photo = { ...meta, ...files };
-  return photo;
+  sessionIds: string[],
+): Promise<Map<string, string[]>> {
+  const result = new Map<string, string[]>(sessionIds.map((id) => [id, []]));
+  if (sessionIds.length === 0) return result;
+  const { data, error } = await client
+    .from("session_exercises")
+    .select("session_id, exercise_id, position")
+    .in("session_id", sessionIds)
+    .order("position", { ascending: true });
+  if (error) throw error;
+  for (const raw of data ?? []) {
+    const row = sessionExerciseRowSchema.parse(raw);
+    result.get(row.session_id)?.push(row.exercise_id);
+  }
+  return result;
+}
+
+type PullContext = {
+  client: SyncClient;
+  userId: string;
+  existing: SyncFields | undefined;
+  sessionExercises: Map<string, string[]>;
+};
+
+async function toLocal(spec: TableSpec, raw: unknown, ctx: PullContext): Promise<SyncFields> {
+  switch (spec.local) {
+    case "exercises":
+      return exerciseMapping.fromRemote(raw);
+    case "weightLogs":
+      return weightLogMapping.fromRemote(raw);
+    case "planEntries":
+      return planMapping.fromRemote(raw);
+    case "sessions": {
+      const id = (raw as { id: string }).id;
+      return sessionMapping.fromRemote(raw, ctx.sessionExercises.get(id) ?? []);
+    }
+    case "photos": {
+      const meta = photoMapping.fromRemote(raw);
+      const local = ctx.existing as Photo | undefined;
+      // Foto borrada: conservamos el registro (para no resucitarla) pero liberamos espacio.
+      // Si no, las fotos no cambian de contenido: si ya la tenemos, no se vuelve a descargar.
+      const files = meta.deletedAt
+        ? { full: new ArrayBuffer(0), thumb: new ArrayBuffer(0) }
+        : local?.full?.byteLength
+          ? { full: local.full, thumb: local.thumb }
+          : await downloadPhoto(ctx.client, ctx.userId, meta.id, meta.mime);
+      const photo: Photo = { ...meta, ...files };
+      return photo;
+    }
+  }
 }
 
 async function pull(db: WellPlanDB, client: SyncClient, userId: string, spec: TableSpec) {
@@ -140,14 +192,32 @@ async function pull(db: WellPlanDB, client: SyncClient, userId: string, spec: Ta
       .order("server_updated_at", { ascending: true })
       .limit(PAGE);
     if (error) throw error;
-    const rows = (data ?? []) as { id: string; updated_at: string; server_updated_at: string }[];
+    const rows = (data ?? []) as {
+      id: string;
+      updated_at: string;
+      server_updated_at: string;
+      deleted_at: string | null;
+    }[];
 
+    const toApply = [];
     for (const row of rows) {
       const existing = await table.get(row.id);
       if (!shouldApplyRemote(existing, row.updated_at)) continue;
       // Si ya la tenemos idéntica (p. ej. la subimos nosotros), no hace falta reescribirla.
       if (existing && existing.dirty === 0 && existing.updatedAt === row.updated_at) continue;
-      await table.put(await toLocal(spec, row, existing, client, userId));
+      toApply.push({ row, existing });
+    }
+
+    const sessionExercises =
+      spec.local === "sessions"
+        ? await fetchSessionExercises(
+            client,
+            toApply.filter(({ row }) => !row.deleted_at).map(({ row }) => row.id),
+          )
+        : new Map<string, string[]>();
+
+    for (const { row, existing } of toApply) {
+      await table.put(await toLocal(spec, row, { client, userId, existing, sessionExercises }));
       applied++;
     }
 

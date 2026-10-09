@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { EXERCISE_TYPES, type Exercise, type Photo, type WeightLog } from "@/db/types";
+import {
+  EXERCISE_TYPES,
+  type Exercise,
+  type Photo,
+  type PlanEntry,
+  type Session,
+  type WeightLog,
+} from "@/db/types";
 
 /*
  * Traducción entre el modelo local (camelCase, IndexedDB) y las filas de Postgres
@@ -142,3 +149,49 @@ export function photoPath(
   const ext = mime === "image/jpeg" ? "jpg" : "webp";
   return `${userId}/${photoId}${variant === "thumb" ? "-thumb" : ""}.${ext}`;
 }
+
+export const sessionRowSchema = z.object({
+  ...syncColumns,
+  name: z.string().max(80),
+});
+
+export const planRowSchema = z.object({
+  ...syncColumns,
+  weekday: z.number().int().min(1).max(7),
+  session_id: z.uuid(),
+  position: z.number().int(),
+});
+
+/** Filas de la tabla intermedia session_exercises (orden de los ejercicios de una sesión). */
+export const sessionExerciseRowSchema = z.object({
+  session_id: z.uuid(),
+  exercise_id: z.uuid(),
+  position: z.number().int(),
+});
+
+export const sessionMapping = {
+  /** La lista de ejercicios viaja aparte, con la función set_session_exercises. */
+  toRemote: (s: Session) => ({ ...syncToRemote(s), name: s.name }),
+  fromRemote: (raw: unknown, exerciseIds: string[]): Session => {
+    const row = sessionRowSchema.parse(raw);
+    return { ...syncFromRemote(row), name: row.name, exerciseIds };
+  },
+};
+
+export const planMapping = {
+  toRemote: (p: PlanEntry) => ({
+    ...syncToRemote(p),
+    weekday: p.weekday,
+    session_id: p.sessionId,
+    position: p.position,
+  }),
+  fromRemote: (raw: unknown): PlanEntry => {
+    const row = planRowSchema.parse(raw);
+    return {
+      ...syncFromRemote(row),
+      weekday: row.weekday,
+      sessionId: row.session_id,
+      position: row.position,
+    };
+  },
+};

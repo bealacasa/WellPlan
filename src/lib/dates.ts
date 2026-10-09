@@ -33,3 +33,10 @@ export function localDateKey(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
+
+const SHORT = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"] as const;
+
+/** 1 → "Lun" … 7 → "Dom" */
+export function weekdayShort(weekday: number): string {
+  return SHORT[weekday - 1] ?? "";
+}

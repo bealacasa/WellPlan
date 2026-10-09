@@ -2,70 +2,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db, WellPlanDB } from "@/db/database";
 import { createExercise, deleteExercise, updateExercise } from "@/db/repositories/exercises";
 import { addLog } from "@/db/repositories/weightLogs";
-import { AccountMismatchError, pendingCount, syncOnce, type SyncClient } from "./engine";
+import { fakeCloud } from "@/test/fakeCloud";
+import { AccountMismatchError, pendingCount, syncOnce } from "./engine";
 import { exerciseMapping, photoPath } from "./mapping";
 import { shouldApplyRemote } from "./merge";
-
-type Row = Record<string, unknown> & { id: string; server_updated_at: string };
-
-/** Nube falsa en memoria: imita las partes de supabase-js que usa el motor. */
-function fakeCloud() {
-  const tables: Record<string, Map<string, Row>> = {};
-  const files = new Map<string, Blob>();
-  let tick = 0;
-  const now = () => new Date(Date.UTC(2026, 9, 9) + ++tick * 1000).toISOString();
-
-  const client = {
-    from(name: string) {
-      const table = (tables[name] ??= new Map());
-      return {
-        upsert: async (rows: Row[]) => {
-          for (const row of rows) {
-            table.set(row.id, { ...table.get(row.id), ...row, server_updated_at: now() });
-          }
-          return { error: null };
-        },
-        select: () => {
-          const query = {
-            column: "",
-            value: "",
-            gte(column: string, value: string) {
-              query.column = column;
-              query.value = value;
-              return query;
-            },
-            order: () => query,
-            limit: async (n: number) => ({
-              data: [...table.values()]
-                .filter((r) => String(r[query.column]) >= query.value)
-                .sort((a, b) => a.server_updated_at.localeCompare(b.server_updated_at))
-                .slice(0, n),
-              error: null,
-            }),
-          };
-          return query;
-        },
-      };
-    },
-    storage: {
-      from: () => ({
-        upload: async (path: string, blob: Blob) => {
-          files.set(path, blob);
-          return { error: null };
-        },
-        remove: async (paths: string[]) => {
-          for (const p of paths) files.delete(p);
-          return { error: null };
-        },
-        download: async (path: string) =>
-          files.has(path)
-            ? { data: files.get(path), error: null }
-            : { data: null, error: new Error("not found") },
-      }),
-    },
-  };
-  return { client: client as unknown as SyncClient, tables, files };
-}
 
 const USER = "11111111-1111-4111-8111-111111111111";
 const exerciseInput = {

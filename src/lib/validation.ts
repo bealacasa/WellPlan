@@ -37,3 +37,14 @@ export const weightLogInputSchema = z.object({
 });
 
 export type WeightLogInput = z.input<typeof weightLogInputSchema>;
+
+/** Sesión: nombre y lista ordenada de ejercicios (sin repetidos; máx. 100, como en Postgres). */
+export const sessionInputSchema = z.object({
+  name: z.string().trim().min(1, "Ponle un nombre a la sesión.").max(80, "Máximo 80 caracteres."),
+  exerciseIds: z
+    .array(z.uuid())
+    .max(100, "Máximo 100 ejercicios por sesión.")
+    .refine((ids) => new Set(ids).size === ids.length, "Hay ejercicios repetidos."),
+});
+
+export type SessionInput = z.infer<typeof sessionInputSchema>;

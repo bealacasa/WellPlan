@@ -6,6 +6,7 @@ import { db } from "../database";
 import { createRecord, isAlive, tombstone, touch } from "../records";
 import type { Exercise, Photo, WeightLog } from "../types";
 import { newPhoto } from "./photos";
+import { removeExerciseFromSessions } from "./sessions";
 
 const byName = (a: Exercise, b: Exercise) => a.name.localeCompare(b.name, "es");
 
@@ -69,9 +70,9 @@ export async function updateExercise(
   notifyLocalChange();
 }
 
-/** Borra el ejercicio junto con su foto y su historial de pesos (borrado lógico). */
+/** Borra el ejercicio junto con su foto y su historial, y lo quita de las sesiones. */
 export async function deleteExercise(id: string): Promise<void> {
-  await db.transaction("rw", db.exercises, db.photos, db.weightLogs, async () => {
+  await db.transaction("rw", [db.exercises, db.photos, db.weightLogs, db.sessions], async () => {
     const current = await db.exercises.get(id);
     if (!isAlive(current)) return;
     await db.exercises.update(id, tombstone<Exercise>());
@@ -79,6 +80,7 @@ export async function deleteExercise(id: string): Promise<void> {
     const logs = await db.weightLogs.where("exerciseId").equals(id).toArray();
     for (const log of logs.filter(isAlive))
       await db.weightLogs.update(log.id, tombstone<WeightLog>());
+    await removeExerciseFromSessions(id);
   });
   notifyLocalChange();
 }
