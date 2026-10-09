@@ -1,0 +1,68 @@
+/**
+ * Modelo de datos local. Los nombres de campo están en camelCase; la capa de
+ * sincronización (src/sync) los traduce a snake_case para Postgres.
+ */
+
+export const EXERCISE_TYPES = ["maquina", "peso_libre", "peso_corporal", "estiramiento"] as const;
+export type ExerciseType = (typeof EXERCISE_TYPES)[number];
+
+/** Campos comunes a todo lo que se sincroniza con Supabase. */
+export type SyncFields = {
+  /** UUID generado en el dispositivo: permite crear registros sin conexión. */
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Borrado lógico: el registro se oculta y el borrado se propaga a la nube. */
+  deletedAt: string | null;
+  /** 1 = cambio pendiente de subir. Número (no boolean) para poder indexarlo en IndexedDB. */
+  dirty: 0 | 1;
+};
+
+export type Exercise = SyncFields & {
+  name: string;
+  type: ExerciseType;
+  photoId: string | null;
+  physioNotes: string;
+  sets: number;
+  reps: number | null;
+  durationSec: number | null;
+  targetKg: number | null;
+};
+
+export type Photo = SyncFields & {
+  /** Imagen redimensionada (máx. ~1200 px) y miniatura (~240 px) para listados. */
+  full: Blob;
+  thumb: Blob;
+  mime: string;
+  width: number;
+  height: number;
+};
+
+export type WeightLog = SyncFields & {
+  exerciseId: string;
+  /** Fecha local "YYYY-MM-DD" del entrenamiento. */
+  date: string;
+  /** Opcional en peso corporal y estiramientos. */
+  kg: number | null;
+  sets: number;
+  reps: number | null;
+  note: string | null;
+};
+
+export type Session = SyncFields & {
+  name: string;
+  /** Orden de los ejercicios en la sesión (en Postgres: tabla session_exercises). */
+  exerciseIds: string[];
+};
+
+export type PlanEntry = SyncFields & {
+  /** 1 = lunes … 7 = domingo. */
+  weekday: number;
+  sessionId: string;
+  position: number;
+};
+
+export type MetaEntry = { key: string; value: unknown };
+
+/** Lo que el código de la app puede rellenar al crear un registro (el resto lo pone el repositorio). */
+export type NewRecord<T extends SyncFields> = Omit<T, keyof SyncFields>;

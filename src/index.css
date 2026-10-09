@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/* Alto contraste (WCAG AA holgado) para leer de un vistazo en el gimnasio. Oscuro automático. */
+:root {
+  color-scheme: light dark;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #eceef2;
+  --text: #0b0c0f;
+  --muted: #4b5160;
+  --border: rgb(11 12 15 / 0.12);
+  --accent: #047857;
+  --accent-contrast: #ffffff;
+  --accent-soft: #d1fae5;
+  --danger: #b91c1c;
+  --warning-bg: #fef3c7;
+  --warning-text: #78350f;
+  --focus: #1d4ed8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1115;
+    --surface: #181b21;
+    --surface-2: #232730;
+    --text: #f4f5f7;
+    --muted: #b4b9c4;
+    --border: rgb(255 255 255 / 0.12);
+    --accent: #34d399;
+    --accent-contrast: #052e1f;
+    --accent-soft: #0b3b2b;
+    --danger: #f87171;
+    --warning-bg: #3a2a0a;
+    --warning-text: #fde68a;
+    --focus: #93c5fd;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-text: var(--warning-text);
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  /* Safe areas con viewport-fit=cover (notch, Dynamic Island, barra de inicio). */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  overscroll-behavior-y: none;
+}
+
+/* iOS hace zoom al enfocar campos de menos de 16px. */
+input,
+select,
+textarea {
+  font-size: max(16px, 1rem);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

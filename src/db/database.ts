@@ -1,0 +1,43 @@
+import Dexie, { type EntityTable } from "dexie";
+import type { Exercise, MetaEntry, Photo, PlanEntry, Session, WeightLog } from "./types";
+
+/**
+ * Base de datos local (IndexedDB vía Dexie). Es la fuente de verdad de la interfaz:
+ * la app lee y escribe aquí siempre, y src/sync sube y baja los cambios cuando hay red.
+ *
+ * Para cambiar el esquema: añade una nueva `this.version(n + 1)` (nunca edites una versión
+ * publicada) y, si hace falta, una función `.upgrade()` que migre los datos.
+ */
+export class WellPlanDB extends Dexie {
+  exercises!: EntityTable<Exercise, "id">;
+  photos!: EntityTable<Photo, "id">;
+  weightLogs!: EntityTable<WeightLog, "id">;
+  sessions!: EntityTable<Session, "id">;
+  planEntries!: EntityTable<PlanEntry, "id">;
+  meta!: EntityTable<MetaEntry, "key">;
+
+  constructor(name = "wellplan") {
+    super(name);
+    this.version(1).stores({
+      exercises: "id, name, updatedAt, dirty",
+      photos: "id, dirty",
+      // Índice compuesto para "último peso de este ejercicio" e historial ordenado por fecha.
+      weightLogs: "id, exerciseId, [exerciseId+date], date, dirty",
+      sessions: "id, name, dirty",
+      planEntries: "id, weekday, sessionId, dirty",
+      meta: "key",
+    });
+  }
+}
+
+export const db = new WellPlanDB();
+
+/** Tablas que se sincronizan con Supabase (todas salvo meta). */
+export const SYNCED_TABLES = [
+  "exercises",
+  "photos",
+  "weightLogs",
+  "sessions",
+  "planEntries",
+] as const;
+export type SyncedTable = (typeof SYNCED_TABLES)[number];
