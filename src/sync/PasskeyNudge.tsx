@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { buttonPrimary } from "@/components/ui";
 import { passkeysSupported, useSession } from "./auth";
-import { supabase } from "./supabase";
+import { getSupabase } from "./supabase";
 
 /**
  * Tras entrar con el enlace del email (en Safari), invita a crear la passkey: es lo que
@@ -13,9 +13,10 @@ export function PasskeyNudge() {
   const [hasPasskey, setHasPasskey] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (!session || !supabase || !passkeysSupported()) return;
+    if (!session || !passkeysSupported()) return;
     let active = true;
-    supabase.auth.passkey.list().then(({ data }) => {
+    void getSupabase().then(async (supabase) => {
+      const { data } = (await supabase?.auth.passkey.list()) ?? { data: [] };
       if (active) setHasPasskey((data?.length ?? 0) > 0);
     });
     return () => {

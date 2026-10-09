@@ -1,0 +1,223 @@
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { KgField } from "@/components/KgField";
+import { NumberStepper } from "@/components/NumberStepper";
+import { PhotoPicker } from "@/components/PhotoPicker";
+import { PageHeader, buttonPrimary, inputClass } from "@/components/ui";
+import {
+  createExercise,
+  deleteExercise,
+  updateExercise,
+  useExercise,
+} from "@/db/repositories/exercises";
+import { usePhotoUrl } from "@/db/repositories/photos";
+import { EXERCISE_TYPES, type Exercise, type ExerciseType } from "@/db/types";
+import type { ProcessedImage } from "@/lib/image";
+import { EXERCISE_TYPE_LABEL, usesDuration, usesKg } from "@/lib/labels";
+import { formatKg, parseKg } from "@/lib/numbers";
+import { exerciseInputSchema } from "@/lib/validation";
+
+/** Alta (/ejercicios/nuevo) y edición (/ejercicios/:id/editar). */
+export function ExerciseFormPage() {
+  const { id } = useParams();
+  const exercise = useExercise(id);
+  if (id && exercise === undefined) return null; // cargando
+  if (id && exercise === null) {
+    return (
+      <>
+        <PageHeader title="Ejercicio no encontrado" />
+        <Link to="/ejercicios" className="underline">
+          Volver a Ejercicios
+        </Link>
+      </>
+    );
+  }
+  return <ExerciseForm key={id ?? "nuevo"} exercise={exercise ?? null} />;
+}
+
+function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
+  const navigate = useNavigate();
+  const [dialog, confirm] = useConfirm();
+  const currentPhoto = usePhotoUrl(exercise?.photoId ?? null, "full");
+
+  const [name, setName] = useState(exercise?.name ?? "");
+  const [type, setType] = useState<ExerciseType>(exercise?.type ?? "maquina");
+  const [physioNotes, setPhysioNotes] = useState(exercise?.physioNotes ?? "");
+  const [sets, setSets] = useState(exercise?.sets ?? 3);
+  const [reps, setReps] = useState(exercise?.reps ?? 12);
+  const [durationSec, setDurationSec] = useState(exercise?.durationSec ?? 30);
+  const [targetKg, setTargetKg] = useState(
+    exercise?.targetKg != null ? formatKg(exercise.targetKg) : "",
+  );
+  const [image, setImage] = useState<ProcessedImage | "remove" | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    const kg = targetKg.trim() === "" ? null : parseKg(targetKg);
+    if (targetKg.trim() !== "" && kg === null) {
+      setError("El peso objetivo debe ser un número entre 0 y 500 (por ejemplo 22,5).");
+      return;
+    }
+    const parsed = exerciseInputSchema.safeParse({
+      name,
+      type,
+      physioNotes,
+      sets,
+      reps: usesDuration(type) ? null : reps,
+      durationSec: usesDuration(type) ? durationSec : null,
+      targetKg: usesKg(type) ? kg : null,
+    });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Revisa los datos.");
+      return;
+    }
+    setSaving(true);
+    try {
+      if (exercise) {
+        await updateExercise(exercise.id, parsed.data, image);
+        navigate(`/ejercicios/${exercise.id}`, { replace: true });
+      } else {
+        const newId = await createExercise(parsed.data, image === "remove" ? undefined : image);
+        navigate(`/ejercicios/${newId}`, { replace: true });
+      }
+    } catch {
+      setError("No se pudo guardar. Inténtalo de nuevo.");
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    if (!exercise) return;
+    const ok = await confirm({
+      title: `¿Borrar «${exercise.name}»?`,
+      message: "Se borrarán también su foto y todo su historial de pesos.",
+      confirmLabel: "Borrar ejercicio",
+    });
+    if (!ok) return;
+    await deleteExercise(exercise.id);
+    navigate("/ejercicios", { replace: true });
+  }
+
+  return (
+    <>
+      <PageHeader title={exercise ? "Editar ejercicio" : "Nuevo ejercicio"} />
+      <form onSubmit={save} className="space-y-5" noValidate>
+        <div>
+          <label htmlFor="name" className="text-sm font-medium">
+            Nombre
+          </label>
+          <input
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={120}
+            autoCapitalize="sentences"
+            placeholder="Ej.: Prensa de piernas"
+            className={`${inputClass} mt-1`}
+          />
+        </div>
+
+        <fieldset>
+          <legend className="text-sm font-medium">Tipo</legend>
+          <div className="mt-1 grid grid-cols-2 gap-2">
+            {EXERCISE_TYPES.map((t) => (
+              <label
+                key={t}
+                className="flex min-h-12 cursor-pointer items-center justify-center rounded-xl border border-border bg-surface px-3 text-center font-semibold has-[:checked]:border-accent has-[:checked]:bg-accent-soft"
+              >
+                <input
+                  type="radio"
+                  name="type"
+                  value={t}
+                  checked={type === t}
+                  onChange={() => setType(t)}
+                  className="sr-only"
+                />
+                {EXERCISE_TYPE_LABEL[t]}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <PhotoPicker currentUrl={currentPhoto} onChange={setImage} />
+
+        <div>
+          <label htmlFor="notes" className="text-sm font-medium">
+            Indicaciones de la fisio
+          </label>
+          <textarea
+            id="notes"
+            rows={4}
+            value={physioNotes}
+            onChange={(e) => setPhysioNotes(e.target.value)}
+            maxLength={4000}
+            placeholder="Ej.: espalda pegada al respaldo, bajar despacio, no bloquear las rodillas…"
+            className={`${inputClass} mt-1 py-3`}
+          />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <NumberStepper
+            id="sets"
+            label="Series"
+            value={sets}
+            onChange={setSets}
+            min={1}
+            max={20}
+          />
+          {usesDuration(type) ? (
+            <NumberStepper
+              id="duration"
+              label="Duración (segundos)"
+              value={durationSec}
+              onChange={setDurationSec}
+              min={1}
+              max={3600}
+            />
+          ) : (
+            <NumberStepper
+              id="reps"
+              label="Repeticiones"
+              value={reps}
+              onChange={setReps}
+              min={1}
+              max={200}
+            />
+          )}
+        </div>
+
+        {usesKg(type) && (
+          <KgField
+            id="target"
+            label="Peso objetivo (opcional)"
+            value={targetKg}
+            onChange={setTargetKg}
+          />
+        )}
+
+        {error && (
+          <p role="alert" className="font-medium text-danger">
+            {error}
+          </p>
+        )}
+
+        <button type="submit" disabled={saving} className={buttonPrimary}>
+          {saving ? "Guardando…" : "Guardar ejercicio"}
+        </button>
+        {exercise && (
+          <button
+            type="button"
+            onClick={remove}
+            className="min-h-12 w-full rounded-2xl font-semibold text-danger"
+          >
+            Borrar ejercicio
+          </button>
+        )}
+      </form>
+      {dialog}
+    </>
+  );
+}

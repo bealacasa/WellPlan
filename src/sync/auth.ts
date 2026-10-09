@@ -1,9 +1,15 @@
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
-import { z } from "zod";
-import { supabase } from "./supabase";
+import { getSupabase, isCloudConfigured } from "./supabase";
 
-export const emailSchema = z.string().trim().toLowerCase().max(254).pipe(z.email());
+/**
+ * Normaliza y valida un email (sin Zod para no cargarlo en la primera pantalla). Supabase
+ * vuelve a validarlo en el servidor. Devuelve null si no es válido.
+ */
+export function normalizeEmail(raw: string): string | null {
+  const email = raw.trim().toLowerCase();
+  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : null;
+}
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
 
@@ -12,16 +18,24 @@ const NOT_CONFIGURED: AuthResult = { ok: false, error: "La nube aún no está co
 /** Sesión actual de Supabase (null si no hay login o no hay nube). */
 export function useSession(): { session: Session | null; loading: boolean } {
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(supabase !== null);
+  const [loading, setLoading] = useState(isCloudConfigured);
 
   useEffect(() => {
-    if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => {
+    let active = true;
+    let unsubscribe = () => {};
+    void getSupabase().then(async (supabase) => {
+      if (!supabase || !active) return;
+      const { data } = await supabase.auth.getSession();
+      if (!active) return;
       setSession(data.session);
       setLoading(false);
+      const sub = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+      unsubscribe = () => sub.data.subscription.unsubscribe();
     });
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
-    return () => data.subscription.unsubscribe();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   return { session, loading };
@@ -37,11 +51,12 @@ export function loginRedirectUrl(origin = window.location.origin): string {
  * no revela si la cuenta existe.
  */
 export async function sendLoginLink(rawEmail: string): Promise<AuthResult> {
+  const supabase = await getSupabase();
   if (!supabase) return NOT_CONFIGURED;
-  const email = emailSchema.safeParse(rawEmail);
-  if (!email.success) return { ok: false, error: "Escribe un email válido." };
+  const email = normalizeEmail(rawEmail);
+  if (!email) return { ok: false, error: "Escribe un email válido." };
   const { error } = await supabase.auth.signInWithOtp({
-    email: email.data,
+    email,
     options: { shouldCreateUser: true, emailRedirectTo: loginRedirectUrl() },
   });
   if (error?.status === 429) {
@@ -51,6 +66,7 @@ export async function sendLoginLink(rawEmail: string): Promise<AuthResult> {
 }
 
 export async function signInWithPasskey(): Promise<AuthResult> {
+  const supabase = await getSupabase();
   if (!supabase) return NOT_CONFIGURED;
   const { error } = await supabase.auth.signInWithPasskey();
   return error
@@ -59,6 +75,7 @@ export async function signInWithPasskey(): Promise<AuthResult> {
 }
 
 export async function registerPasskey(): Promise<AuthResult> {
+  const supabase = await getSupabase();
   if (!supabase) return NOT_CONFIGURED;
   const { error } = await supabase.auth.registerPasskey();
   return error ? { ok: false, error: "No se pudo guardar la passkey." } : { ok: true };
@@ -66,7 +83,7 @@ export async function registerPasskey(): Promise<AuthResult> {
 
 export async function signOut(): Promise<void> {
   // Cierra la sesión en este dispositivo. Los datos locales se conservan.
-  await supabase?.auth.signOut({ scope: "local" });
+  await (await getSupabase())?.auth.signOut({ scope: "local" });
 }
 
 export const passkeysSupported = () =>

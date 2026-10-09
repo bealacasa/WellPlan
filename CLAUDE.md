@@ -26,6 +26,10 @@ Node 24 (`.nvmrc`). En Windows/Git Bash: `export PATH="/c/Program Files/nodejs:$
 - `src/sync/`: Supabase (auth + sincronización). Todo registro sincronizable lleva `id` UUID
   generado en el cliente, `createdAt`, `updatedAt`, `deletedAt` (borrado lógico) y `dirty` (0/1).
   Conflictos: gana el `updatedAt` más reciente. El servidor pone `server_updated_at` (cursor de bajada).
+- Binarios (fotos) en IndexedDB como `ArrayBuffer`, nunca `Blob`: Safari no admite Blobs en IndexedDB en
+  navegación privada (y Playwright/WebKit tampoco). Preparar datos asíncronos ANTES de `db.transaction`.
+- Supabase y el motor de sync se cargan en diferido (`getSupabase()`, `import("./engine")`) para que la
+  primera pantalla no cargue ~100 kB extra; las pantallas salvo Hoy son rutas `lazy`.
 - Cambios de esquema local: nueva `this.version(n + 1)` en `database.ts`, nunca editar una publicada.
 - Cambios de esquema remoto: nueva migración en `supabase/migrations/`, con comentarios didácticos.
 - Desplegada en GitHub Pages bajo `/WellPlan/` (`base` en `vite.config.ts`, `basename` del router).

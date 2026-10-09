@@ -31,8 +31,9 @@ export type Exercise = SyncFields & {
 
 export type Photo = SyncFields & {
   /** Imagen redimensionada (máx. ~1200 px) y miniatura (~240 px) para listados. */
-  full: Blob;
-  thumb: Blob;
+  // ArrayBuffer y no Blob: Safari no deja guardar Blobs en IndexedDB en navegación privada.
+  full: ArrayBuffer;
+  thumb: ArrayBuffer;
   mime: string;
   width: number;
   height: number;

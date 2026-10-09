@@ -1,21 +1,51 @@
 import { createBrowserRouter } from "react-router";
-import { ExercisesPage } from "@/pages/ExercisesPage";
-import { NotFoundPage } from "@/pages/NotFoundPage";
-import { PlanPage } from "@/pages/PlanPage";
-import { SettingsPage } from "@/pages/SettingsPage";
 import { TodayPage } from "@/pages/TodayPage";
 import { Layout } from "./Layout";
 
+/*
+ * "Hoy" va en el paquete inicial (es la primera pantalla). El resto se descarga al abrirlo;
+ * con la app instalada el service worker ya las tiene en caché, así que es instantáneo.
+ */
 export const router = createBrowserRouter(
   [
     {
       element: <Layout />,
       children: [
         { index: true, element: <TodayPage /> },
-        { path: "plan", element: <PlanPage /> },
-        { path: "ejercicios", element: <ExercisesPage /> },
-        { path: "ajustes", element: <SettingsPage /> },
-        { path: "*", element: <NotFoundPage /> },
+        {
+          path: "plan",
+          lazy: async () => ({ Component: (await import("@/pages/PlanPage")).PlanPage }),
+        },
+        {
+          path: "ejercicios",
+          lazy: async () => ({ Component: (await import("@/pages/ExercisesPage")).ExercisesPage }),
+        },
+        {
+          path: "ejercicios/nuevo",
+          lazy: async () => ({
+            Component: (await import("@/pages/ExerciseFormPage")).ExerciseFormPage,
+          }),
+        },
+        {
+          path: "ejercicios/:id",
+          lazy: async () => ({
+            Component: (await import("@/pages/ExerciseDetailPage")).ExerciseDetailPage,
+          }),
+        },
+        {
+          path: "ejercicios/:id/editar",
+          lazy: async () => ({
+            Component: (await import("@/pages/ExerciseFormPage")).ExerciseFormPage,
+          }),
+        },
+        {
+          path: "ajustes",
+          lazy: async () => ({ Component: (await import("@/pages/SettingsPage")).SettingsPage }),
+        },
+        {
+          path: "*",
+          lazy: async () => ({ Component: (await import("@/pages/NotFoundPage")).NotFoundPage }),
+        },
       ],
     },
   ],

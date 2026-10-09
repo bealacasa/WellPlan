@@ -23,4 +23,9 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // En los tests, "!" es aceptable: si el valor falta, el test debe fallar igualmente.
+    files: ["**/*.test.{ts,tsx}", "src/test/**"],
+    rules: { "@typescript-eslint/no-non-null-assertion": "off" },
+  },
 );

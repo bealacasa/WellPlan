@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { emailSchema, loginRedirectUrl, sendLoginLink } from "./auth";
+import { loginRedirectUrl, normalizeEmail, sendLoginLink } from "./auth";
 
 describe("login", () => {
   it("normaliza el email y rechaza los no válidos", () => {
-    expect(emailSchema.parse("  Ana@Example.COM ")).toBe("ana@example.com");
-    expect(emailSchema.safeParse("no-es-email").success).toBe(false);
+    expect(normalizeEmail("  Ana@Example.COM ")).toBe("ana@example.com");
+    for (const bad of ["no-es-email", "a@b", "a b@c.es", "@c.es", ""]) {
+      expect(normalizeEmail(bad), bad).toBeNull();
+    }
   });
 
   it("el enlace vuelve a la raíz de la app", () => {

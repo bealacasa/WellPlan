@@ -53,6 +53,8 @@
 }
 
 html {
+  /* Al enfocar campos o desplazar, que nada quede tapado por la barra de pestañas fija. */
+  scroll-padding-bottom: calc(7rem + env(safe-area-inset-bottom));
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;

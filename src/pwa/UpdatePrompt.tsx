@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 
 /**
@@ -10,6 +11,13 @@ export function UpdatePrompt() {
     offlineReady: [offlineReady, setOfflineReady],
     updateServiceWorker,
   } = useRegisterSW();
+
+  // "Lista para usar sin conexión" es informativo: se oculta solo para no tapar botones.
+  useEffect(() => {
+    if (!offlineReady || needRefresh) return;
+    const timer = setTimeout(() => setOfflineReady(false), 4000);
+    return () => clearTimeout(timer);
+  }, [offlineReady, needRefresh, setOfflineReady]);
 
   if (!needRefresh && !offlineReady) return null;
 

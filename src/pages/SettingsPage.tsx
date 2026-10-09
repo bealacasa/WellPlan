@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CloudIcon } from "@/components/icons";
 import { Card, PageHeader } from "@/components/ui";
 import { AccountCard } from "@/sync/AccountCard";
+import { SyncCard } from "@/sync/SyncCard";
 import { isStandalone, storageUsage, type StorageUsage } from "@/pwa/storage";
 
 const mbFormat = new Intl.NumberFormat("es-ES", {
@@ -21,6 +22,7 @@ export function SettingsPage() {
       <PageHeader title="Ajustes" />
       <div className="space-y-4">
         <AccountCard />
+        <SyncCard />
 
         <Card>
           <h2 className="flex items-center gap-2 text-lg font-semibold">
