@@ -22,6 +22,10 @@ const exercise = (name: string) =>
     reps: 12,
     durationSec: null,
     targetKg: 20,
+    targetDistanceKm: null,
+    intervalRunSec: null,
+    intervalWalkSec: null,
+    intervalRounds: null,
   });
 
 describe("registros", () => {
@@ -59,7 +63,17 @@ describe("esquema Dexie", () => {
     const e = exercise("Prensa");
     await db.exercises.add(e);
     const log = (date: string, kg: number) =>
-      createRecord<WeightLog>({ exerciseId: e.id, date, kg, sets: 3, reps: 10, note: null });
+      createRecord<WeightLog>({
+        exerciseId: e.id,
+        date,
+        kg,
+        sets: 3,
+        reps: 10,
+        distanceKm: null,
+        durationSec: null,
+        effort: null,
+        note: null,
+      });
     await db.weightLogs.bulkAdd([
       log("2026-10-01", 20),
       log("2026-10-08", 22.5),
@@ -83,5 +97,48 @@ describe("meta", () => {
   it("guarda y lee valores locales", async () => {
     await setMeta("lastBackupAt", "2026-10-09");
     expect(await getMeta<string>("lastBackupAt")).toBe("2026-10-09");
+  });
+});
+
+describe("migración de la base de datos local v1 → v2", () => {
+  it("conserva los datos antiguos y añade los campos nuevos a null", async () => {
+    const name = `migracion-${crypto.randomUUID()}`;
+    // Simula el iPhone con la versión 1 publicada.
+    const old = new Dexie(name);
+    old.version(1).stores({
+      exercises: "id, name, updatedAt, dirty",
+      photos: "id, dirty",
+      weightLogs: "id, exerciseId, [exerciseId+date], date, dirty",
+      sessions: "id, name, dirty",
+      planEntries: "id, weekday, sessionId, dirty",
+      meta: "key",
+    });
+    await old.table("exercises").add({ id: "e1", name: "Prensa", type: "maquina", dirty: 0 });
+    await old
+      .table("weightLogs")
+      .add({ id: "l1", exerciseId: "e1", date: "2026-10-01", kg: 20, dirty: 0 });
+    await old
+      .table("planEntries")
+      .add({ id: "p1", weekday: 1, sessionId: "s1", position: 0, dirty: 0 });
+    old.close();
+
+    const upgraded = new WellPlanDB(name);
+    await upgraded.open();
+    expect(await upgraded.exercises.get("e1")).toMatchObject({
+      name: "Prensa",
+      targetDistanceKm: null,
+      intervalRounds: null,
+      dirty: 0,
+    });
+    expect(await upgraded.weightLogs.get("l1")).toMatchObject({
+      kg: 20,
+      distanceKm: null,
+      effort: null,
+    });
+    expect(await upgraded.planEntries.get("p1")).toMatchObject({
+      sessionId: "s1",
+      exerciseId: null,
+    });
+    expect(await upgraded.planEntries.where("exerciseId").equals("x").count()).toBe(0);
   });
 });

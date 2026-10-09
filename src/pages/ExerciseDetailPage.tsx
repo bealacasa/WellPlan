@@ -10,8 +10,24 @@ import { useExercise } from "@/db/repositories/exercises";
 import { addLog, deleteLog, useLogs } from "@/db/repositories/weightLogs";
 import type { Exercise, WeightLog } from "@/db/types";
 import { localDateKey } from "@/lib/dates";
-import { EXERCISE_TYPE_LABEL, isClass, shortDate, targetLabel, usesKg } from "@/lib/labels";
-import { formatKg, parseKg } from "@/lib/numbers";
+import {
+  EXERCISE_TYPE_LABEL,
+  isCardio,
+  isClass,
+  logSummary,
+  shortDate,
+  targetLabel,
+  usesKg,
+} from "@/lib/labels";
+import {
+  KM_STEP,
+  formatKg,
+  formatPace,
+  paceSecPerKm,
+  parseKg,
+  parseKm,
+  stepKg,
+} from "@/lib/numbers";
 
 export function ExerciseDetailPage() {
   const { id } = useParams();
@@ -39,14 +55,20 @@ export function ExerciseDetailPage() {
     );
   }
 
-  async function removeLog(log: WeightLog) {
+  async function removeLog(log: WeightLog, type: Exercise["type"]) {
     const ok = await confirm({
       title: "¿Borrar este registro?",
-      message: `${shortDate(log.date)}${log.kg !== null ? ` · ${formatKg(log.kg)} kg` : ""}`,
+      message: `${shortDate(log.date)} · ${logSummary(log, type)}`,
       confirmLabel: "Borrar registro",
     });
     if (ok) await deleteLog(log.id);
   }
+
+  const chart = isCardio(exercise.type)
+    ? { unit: "km" as const, data: logs.map((l) => ({ date: l.date, value: l.distanceKm })) }
+    : usesKg(exercise.type)
+      ? { unit: "kg" as const, data: logs.map((l) => ({ date: l.date, value: l.kg })) }
+      : null;
 
   return (
     <>
@@ -77,7 +99,7 @@ export function ExerciseDetailPage() {
         </Card>
       )}
 
-      {/* key: al registrar, el formulario se reinicia con el nuevo "último peso". */}
+      {/* key: al registrar, el formulario se reinicia con los nuevos "últimos" valores. */}
       <QuickLog
         key={logs[0]?.id ?? "vacio"}
         exercise={exercise}
@@ -96,9 +118,9 @@ export function ExerciseDetailPage() {
       {logs.length > 0 && (
         <Card className="mt-4">
           <h2 className="text-lg font-semibold">Historial</h2>
-          {usesKg(exercise.type) && (
+          {chart && (
             <div className="mt-3">
-              <WeightChart logs={logs} />
+              <WeightChart data={chart.data} unit={chart.unit} />
             </div>
           )}
           <ul className="mt-3 divide-y divide-border">
@@ -107,14 +129,13 @@ export function ExerciseDetailPage() {
                 <span className="w-16 shrink-0 text-sm text-muted">{shortDate(log.date)}</span>
                 <span className="flex-1">
                   <span className="font-semibold tabular-nums">
-                    {log.kg !== null ? `${formatKg(log.kg)} kg · ` : ""}
-                    {log.sets} × {log.reps ?? "—"}
+                    {logSummary(log, exercise.type)}
                   </span>
                   {log.note && <span className="block text-sm text-muted">{log.note}</span>}
                 </span>
                 <button
                   type="button"
-                  onClick={() => removeLog(log)}
+                  onClick={() => removeLog(log, exercise.type)}
                   aria-label={`Borrar registro del ${shortDate(log.date)}`}
                   className="grid size-11 place-items-center rounded-xl text-muted"
                 >
@@ -134,35 +155,81 @@ export function ExerciseDetailPage() {
   );
 }
 
-/** Registro rápido del día, relleno con el último peso usado (o el objetivo). */
-function QuickLog({
-  exercise,
-  last,
-  onSaved,
-}: {
+type QuickLogProps = {
   exercise: Exercise;
   last: WeightLog | null;
   onSaved: (message: string) => void;
-}) {
+};
+
+/** Registro rápido del día, relleno con los últimos valores usados (o el objetivo). */
+function QuickLog(props: QuickLogProps) {
+  return (
+    <Card>
+      <h2 className="text-lg font-semibold">Registrar hoy</h2>
+      {props.last && (
+        <p className="mt-1 text-sm text-muted">
+          Última vez ({shortDate(props.last.date)}):{" "}
+          <strong className="text-text">{logSummary(props.last, props.exercise.type)}</strong>
+        </p>
+      )}
+      {isCardio(props.exercise.type) ? <CardioForm {...props} /> : <StrengthForm {...props} />}
+    </Card>
+  );
+}
+
+function NoteField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label htmlFor="note" className="text-sm font-medium">
+        Nota (opcional)
+      </label>
+      <input
+        id="note"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        maxLength={500}
+        placeholder="Ej.: molestia en la rodilla"
+        className={`${inputClass} mt-1`}
+      />
+    </div>
+  );
+}
+
+function useSave(onSaved: QuickLogProps["onSaved"]) {
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  async function run(action: () => Promise<string>) {
+    setSaving(true);
+    setError(null);
+    try {
+      onSaved(await action());
+    } catch {
+      setError("No se pudo guardar. Revisa los datos.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  return { error, setError, saving, run };
+}
+
+/** Fuerza, estiramientos y clases: kilos ±2,5, series y repeticiones. */
+function StrengthForm({ exercise, last, onSaved }: QuickLogProps) {
   const withKg = usesKg(exercise.type);
   const initialKg = last?.kg ?? exercise.targetKg;
   const [kg, setKg] = useState(initialKg !== null ? formatKg(initialKg) : "");
   const [sets, setSets] = useState(last?.sets ?? exercise.sets);
   const [reps, setReps] = useState(last?.reps ?? exercise.reps ?? 10);
   const [note, setNote] = useState("");
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const [saving, setSaving] = useState(false);
+  const { error, setError, saving, run } = useSave(onSaved);
 
-  async function save(e: React.FormEvent) {
+  function save(e: React.FormEvent) {
     e.preventDefault();
     const value = withKg ? parseKg(kg) : null;
     if (withKg && value === null) {
-      setMessage({ ok: false, text: "Escribe los kilos (por ejemplo 22,5)." });
+      setError("Escribe los kilos (por ejemplo 22,5).");
       return;
     }
-    setSaving(true);
-    setMessage(null);
-    try {
+    void run(async () => {
       await addLog(exercise.id, {
         date: localDateKey(new Date()),
         kg: value,
@@ -170,80 +237,184 @@ function QuickLog({
         reps: exercise.durationSec ? null : reps,
         note,
       });
-      onSaved(value !== null ? `Guardado: ${formatKg(value)} kg` : "Guardado");
-    } catch {
-      setMessage({ ok: false, text: "No se pudo guardar. Revisa los datos." });
-    } finally {
-      setSaving(false);
-    }
+      return value !== null ? `Guardado: ${formatKg(value)} kg` : "Guardado";
+    });
   }
 
   return (
-    <Card>
-      <h2 className="text-lg font-semibold">Registrar hoy</h2>
-      {last && (
-        <p className="mt-1 text-sm text-muted">
-          Última vez ({shortDate(last.date)}):{" "}
-          <strong className="text-text">
-            {last.kg !== null ? `${formatKg(last.kg)} kg · ` : ""}
-            {last.sets} × {last.reps ?? "—"}
-          </strong>
+    <form onSubmit={save} className="mt-4 space-y-4" noValidate>
+      {withKg && (
+        <KgField id="kg" label="Peso" value={kg} onChange={setKg} invalid={error !== null} />
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        {!isClass(exercise.type) && (
+          <NumberStepper
+            id="log-sets"
+            label="Series"
+            value={sets}
+            onChange={setSets}
+            min={1}
+            max={20}
+          />
+        )}
+        {!exercise.durationSec && (
+          <NumberStepper
+            id="log-reps"
+            label="Reps"
+            value={reps}
+            onChange={setReps}
+            min={1}
+            max={200}
+          />
+        )}
+      </div>
+      <NoteField value={note} onChange={setNote} />
+      {error && (
+        <p role="alert" className="font-medium text-danger">
+          {error}
         </p>
       )}
-      <form onSubmit={save} className="mt-4 space-y-4" noValidate>
-        {withKg && (
-          <KgField
-            id="kg"
-            label="Peso"
-            value={kg}
-            onChange={setKg}
-            invalid={message?.ok === false}
-          />
-        )}
-        <div className="grid grid-cols-2 gap-3">
-          {!isClass(exercise.type) && (
-            <NumberStepper
-              id="log-sets"
-              label="Series"
-              value={sets}
-              onChange={setSets}
-              min={1}
-              max={20}
+      <button type="submit" disabled={saving} className={buttonPrimary}>
+        {saving ? "Guardando…" : isClass(exercise.type) ? "Marcar como hecha" : "Guardar"}
+      </button>
+    </form>
+  );
+}
+
+/** Cardio: distancia (±0,5 km), tiempo, ritmo calculado y esfuerzo percibido 1–10. */
+function CardioForm({ exercise, last, onSaved }: QuickLogProps) {
+  const initialKm = last?.distanceKm ?? exercise.targetDistanceKm;
+  const initialSec = last?.durationSec ?? exercise.durationSec ?? 0;
+  const [km, setKm] = useState(initialKm !== null ? formatKg(initialKm) : "");
+  const [minutes, setMinutes] = useState(Math.floor(initialSec / 60));
+  const [seconds, setSeconds] = useState(initialSec % 60);
+  const [effort, setEffort] = useState<number | null>(last?.effort ?? null);
+  const [note, setNote] = useState("");
+  const { error, setError, saving, run } = useSave(onSaved);
+
+  const distance = km.trim() === "" ? null : parseKm(km);
+  const durationSec = minutes * 60 + seconds;
+  const pace = paceSecPerKm(distance, durationSec || null);
+  const stepButton =
+    "min-h-14 shrink-0 rounded-xl bg-surface-2 px-3 text-lg font-bold tabular-nums active:scale-95";
+
+  function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (km.trim() !== "" && distance === null) {
+      setError("Escribe la distancia en km (por ejemplo 5,5).");
+      return;
+    }
+    void run(async () => {
+      await addLog(exercise.id, {
+        date: localDateKey(new Date()),
+        kg: null,
+        sets: 1,
+        reps: null,
+        distanceKm: distance,
+        durationSec: durationSec > 0 ? durationSec : null,
+        effort,
+        note,
+      });
+      return distance !== null ? `Guardado: ${formatKg(distance)} km` : "Guardado";
+    });
+  }
+
+  return (
+    <form onSubmit={save} className="mt-4 space-y-4" noValidate>
+      <div>
+        <label htmlFor="km" className="text-sm font-medium">
+          Distancia
+        </label>
+        <div className="mt-1 flex items-center gap-2">
+          <button
+            type="button"
+            className={stepButton}
+            aria-label="Restar medio kilómetro"
+            onClick={() => setKm(formatKg(stepKg(distance ?? 0, -KM_STEP)))}
+          >
+            −0,5
+          </button>
+          <div className="relative min-w-0 flex-1">
+            <input
+              id="km"
+              inputMode="decimal"
+              autoComplete="off"
+              value={km}
+              onChange={(e) => setKm(e.target.value)}
+              aria-invalid={error !== null || undefined}
+              className="min-h-14 w-full rounded-xl border border-border bg-surface pr-10 text-center text-2xl font-bold tabular-nums aria-invalid:border-danger"
             />
-          )}
-          {!exercise.durationSec && (
-            <NumberStepper
-              id="log-reps"
-              label="Reps"
-              value={reps}
-              onChange={setReps}
-              min={1}
-              max={200}
-            />
-          )}
+            <span className="pointer-events-none absolute inset-y-0 right-3 grid place-items-center text-muted">
+              km
+            </span>
+          </div>
+          <button
+            type="button"
+            className={stepButton}
+            aria-label="Sumar medio kilómetro"
+            onClick={() => setKm(formatKg(stepKg(distance ?? 0, KM_STEP)))}
+          >
+            +0,5
+          </button>
         </div>
-        <div>
-          <label htmlFor="note" className="text-sm font-medium">
-            Nota (opcional)
-          </label>
-          <input
-            id="note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            maxLength={500}
-            placeholder="Ej.: molestia en la rodilla"
-            className={`${inputClass} mt-1`}
-          />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <NumberStepper
+          id="minutes"
+          label="Minutos"
+          value={minutes}
+          onChange={setMinutes}
+          min={0}
+          max={1440}
+        />
+        <NumberStepper
+          id="seconds"
+          label="Segundos"
+          value={seconds}
+          onChange={setSeconds}
+          min={0}
+          max={59}
+        />
+      </div>
+
+      <p className="rounded-2xl bg-surface-2 px-4 py-3 text-lg" aria-live="polite">
+        Ritmo: <strong className="tabular-nums">{pace !== null ? formatPace(pace) : "—"}</strong>
+      </p>
+
+      <fieldset>
+        <legend className="text-sm font-medium">
+          Esfuerzo percibido (1 = muy suave, 10 = máximo)
+        </legend>
+        <div className="mt-1 grid grid-cols-5 gap-2">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+            <label
+              key={n}
+              className="grid min-h-12 cursor-pointer place-items-center rounded-xl border-2 border-border bg-surface text-lg font-bold has-[:checked]:border-accent has-[:checked]:bg-accent-soft"
+            >
+              <input
+                type="radio"
+                name="effort"
+                value={n}
+                checked={effort === n}
+                onChange={() => setEffort(n)}
+                className="sr-only"
+              />
+              {n}
+            </label>
+          ))}
         </div>
-        {message && (
-          <p role="alert" className="font-medium text-danger">
-            {message.text}
-          </p>
-        )}
-        <button type="submit" disabled={saving} className={buttonPrimary}>
-          {saving ? "Guardando…" : isClass(exercise.type) ? "Marcar como hecha" : "Guardar"}
-        </button>
-      </form>
-    </Card>
+      </fieldset>
+
+      <NoteField value={note} onChange={setNote} />
+      {error && (
+        <p role="alert" className="font-medium text-danger">
+          {error}
+        </p>
+      )}
+      <button type="submit" disabled={saving} className={buttonPrimary}>
+        {saving ? "Guardando…" : "Guardar"}
+      </button>
+    </form>
   );
 }

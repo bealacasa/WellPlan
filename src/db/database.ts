@@ -27,6 +27,36 @@ export class WellPlanDB extends Dexie {
       planEntries: "id, weekday, sessionId, dirty",
       meta: "key",
     });
+
+    // v2: cardio (distancia, tiempo, esfuerzo, intervalos CaCo) y ejercicios sueltos en el plan.
+    // Los datos ya guardados reciben los campos nuevos a null; no se marcan para subir.
+    this.version(2)
+      .stores({ planEntries: "id, weekday, sessionId, exerciseId, dirty" })
+      .upgrade(async (tx) => {
+        await tx
+          .table("exercises")
+          .toCollection()
+          .modify((e) => {
+            e.targetDistanceKm ??= null;
+            e.intervalRunSec ??= null;
+            e.intervalWalkSec ??= null;
+            e.intervalRounds ??= null;
+          });
+        await tx
+          .table("weightLogs")
+          .toCollection()
+          .modify((l) => {
+            l.distanceKm ??= null;
+            l.durationSec ??= null;
+            l.effort ??= null;
+          });
+        await tx
+          .table("planEntries")
+          .toCollection()
+          .modify((p) => {
+            p.exerciseId ??= null;
+          });
+      });
   }
 }
 

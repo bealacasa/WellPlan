@@ -55,10 +55,10 @@ describe("sesiones y plan", () => {
     await user.click(screen.getByRole("button", { name: "Guardar sesión" }));
 
     // Vuelve al plan: asignar al lunes con el selector.
-    const monday = await screen.findByLabelText("Añadir una sesión al lunes");
+    const monday = await screen.findByLabelText("Añadir al lunes");
     const session = (await db.sessions.toArray())[0]!;
     expect(session.exerciseIds.length).toBe(2);
-    await user.selectOptions(monday, session.id);
+    await user.selectOptions(monday, `s:${session.id}`);
     expect(
       await screen.findByRole("button", { name: "Quitar Pierna + core del lunes" }),
     ).toBeTruthy();

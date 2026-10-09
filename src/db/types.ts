@@ -9,6 +9,7 @@ export const EXERCISE_TYPES = [
   "peso_corporal",
   "estiramiento",
   "clase",
+  "cardio",
 ] as const;
 export type ExerciseType = (typeof EXERCISE_TYPES)[number];
 
@@ -31,8 +32,15 @@ export type Exercise = SyncFields & {
   physioNotes: string;
   sets: number;
   reps: number | null;
+  /** Objetivo de tiempo (estiramiento: segundos; clase y cardio: tiempo total). */
   durationSec: number | null;
   targetKg: number | null;
+  /** Cardio: distancia objetivo en km. */
+  targetDistanceKm: number | null;
+  /** Cardio: intervalos CaCo (caminar-correr). Los tres a la vez o ninguno. */
+  intervalRunSec: number | null;
+  intervalWalkSec: number | null;
+  intervalRounds: number | null;
 };
 
 export type Photo = SyncFields & {
@@ -53,6 +61,10 @@ export type WeightLog = SyncFields & {
   kg: number | null;
   sets: number;
   reps: number | null;
+  /** Cardio: distancia (km), tiempo (s) y esfuerzo percibido 1–10. */
+  distanceKm: number | null;
+  durationSec: number | null;
+  effort: number | null;
   note: string | null;
 };
 
@@ -65,7 +77,9 @@ export type Session = SyncFields & {
 export type PlanEntry = SyncFields & {
   /** 1 = lunes … 7 = domingo. */
   weekday: number;
-  sessionId: string;
+  /** Cada entrada es una sesión O un ejercicio suelto (exactamente uno de los dos). */
+  sessionId: string | null;
+  exerciseId: string | null;
   position: number;
 };
 

@@ -3,6 +3,7 @@ import { CloudIcon } from "@/components/icons";
 import { Card, PageHeader } from "@/components/ui";
 import { AccountCard } from "@/sync/AccountCard";
 import { SyncCard } from "@/sync/SyncCard";
+import { AlertsCard } from "@/pwa/AlertsCard";
 import { isStandalone, storageUsage, type StorageUsage } from "@/pwa/storage";
 
 const mbFormat = new Intl.NumberFormat("es-ES", {
@@ -23,6 +24,7 @@ export function SettingsPage() {
       <div className="space-y-4">
         <AccountCard />
         <SyncCard />
+        <AlertsCard />
 
         <Card>
           <h2 className="flex items-center gap-2 text-lg font-semibold">

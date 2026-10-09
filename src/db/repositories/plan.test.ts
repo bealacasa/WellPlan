@@ -54,8 +54,8 @@ describe("sesiones", () => {
 
   it("al borrar una sesión se quita de todos los días", async () => {
     const id = await createSession({ name: "Pierna", exerciseIds: [await exercise("Prensa")] });
-    await addToDay(1, id);
-    await addToDay(4, id);
+    await addToDay(1, { sessionId: id });
+    await addToDay(4, { sessionId: id });
     await deleteSession(id);
 
     expect(await listSessions()).toEqual([]);
@@ -70,16 +70,16 @@ describe("plan semanal", () => {
     const e = await exercise("Prensa");
     const pierna = await createSession({ name: "Pierna", exerciseIds: [e] });
     const core = await createSession({ name: "Core", exerciseIds: [e] });
-    await addToDay(1, pierna);
-    await addToDay(1, core);
-    await addToDay(1, pierna);
+    await addToDay(1, { sessionId: pierna });
+    await addToDay(1, { sessionId: core });
+    await addToDay(1, { sessionId: pierna });
 
     const monday = (await getWeekPlan())[1] ?? [];
     expect(monday.map((x) => x.sessionId)).toEqual([pierna, core]);
 
     await removeFromDay(monday[0]!.id);
     expect(((await getWeekPlan())[1] ?? []).map((x) => x.sessionId)).toEqual([core]);
-    await expect(addToDay(8, core)).rejects.toThrow();
+    await expect(addToDay(8, { sessionId: core })).rejects.toThrow();
   });
 });
 
@@ -89,7 +89,7 @@ describe("sincronización de sesiones y plan", () => {
     const user = "11111111-1111-4111-8111-111111111111";
     const [a, b, c] = [await exercise("A"), await exercise("B"), await exercise("C")];
     const id = await createSession({ name: "Pierna + core", exerciseIds: [c, a, b] });
-    await addToDay(3, id);
+    await addToDay(3, { sessionId: id });
     await syncOnce(db, cloud.client, user);
 
     const other = new WellPlanDB(`otro-${crypto.randomUUID()}`);
@@ -105,5 +105,64 @@ describe("sincronización de sesiones y plan", () => {
     await syncOnce(db, cloud.client, user);
     await syncOnce(other, cloud.client, user);
     expect((await other.sessions.get(id))?.exerciseIds).toEqual([a, b, c]);
+  });
+});
+
+describe("cardio y ejercicios sueltos en el plan", () => {
+  it("se sincronizan entre dispositivos", async () => {
+    const cloud = fakeCloud();
+    const user = "11111111-1111-4111-8111-111111111111";
+    const run = await createExercise({
+      name: "Correr CaCo",
+      type: "cardio",
+      physioNotes: "",
+      sets: 1,
+      reps: null,
+      durationSec: 1800,
+      targetKg: null,
+      targetDistanceKm: 4,
+      intervalRunSec: 120,
+      intervalWalkSec: 60,
+      intervalRounds: 8,
+    });
+    await addToDay(3, { exerciseId: run });
+    const { addLog } = await import("./weightLogs");
+    await addLog(run, {
+      date: "2026-10-09",
+      kg: null,
+      sets: 1,
+      reps: null,
+      distanceKm: 4.2,
+      durationSec: 1700,
+      effort: 6,
+      note: "Bien",
+    });
+    await syncOnce(db, cloud.client, user);
+
+    const other = new WellPlanDB(`otro-${crypto.randomUUID()}`);
+    await other.open();
+    await syncOnce(other, cloud.client, user);
+    expect(await other.exercises.get(run)).toMatchObject({
+      type: "cardio",
+      targetDistanceKm: 4,
+      intervalRounds: 8,
+    });
+    expect((await other.weightLogs.toArray())[0]).toMatchObject({
+      distanceKm: 4.2,
+      durationSec: 1700,
+      effort: 6,
+    });
+    expect((await other.planEntries.toArray())[0]).toMatchObject({
+      weekday: 3,
+      sessionId: null,
+      exerciseId: run,
+    });
+  });
+
+  it("borrar el ejercicio lo quita del plan", async () => {
+    const yoga = await exercise("Yoga");
+    await addToDay(2, { exerciseId: yoga });
+    await deleteExercise(yoga);
+    expect((await getWeekPlan())[2]).toEqual([]);
   });
 });

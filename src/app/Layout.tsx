@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router";
 import { ListIcon, PlanIcon, SettingsIcon, TodayIcon } from "@/components/icons";
+import { useAlerts } from "@/pwa/alerts";
 import { UpdatePrompt } from "@/pwa/UpdatePrompt";
 
 const TABS = [
@@ -10,6 +11,7 @@ const TABS = [
 ] as const;
 
 export function Layout() {
+  const { atRisk } = useAlerts();
   return (
     <div className="flex min-h-dvh flex-col">
       <main
@@ -38,13 +40,19 @@ export function Layout() {
                 {({ isActive }) => (
                   <>
                     <span
-                      className={`grid h-8 w-14 place-items-center rounded-full transition-colors ${
+                      className={`relative grid h-8 w-14 place-items-center rounded-full transition-colors ${
                         isActive ? "bg-accent-soft" : ""
                       }`}
                     >
                       <Icon className="size-6" />
+                      {to === "/ajustes" && atRisk && (
+                        <span className="absolute right-3 top-0.5 size-2.5 rounded-full bg-danger ring-2 ring-bg" />
+                      )}
                     </span>
                     {label}
+                    {to === "/ajustes" && atRisk && (
+                      <span className="sr-only"> (hay un aviso)</span>
+                    )}
                   </>
                 )}
               </NavLink>

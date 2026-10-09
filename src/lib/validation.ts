@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { EXERCISE_TYPES } from "@/db/types";
-import { MAX_KG } from "./numbers";
+import { MAX_KG, MAX_KM } from "./numbers";
 
 const optionalInt = (min: number, max: number) => z.number().int().min(min).max(max).nullable();
 
@@ -14,13 +14,27 @@ export const exerciseInputSchema = z
     reps: optionalInt(1, 200),
     durationSec: optionalInt(1, 10800),
     targetKg: z.number().min(0).max(MAX_KG).nullable(),
+    targetDistanceKm: z.number().min(0).max(MAX_KM).nullable().default(null),
+    intervalRunSec: optionalInt(1, 3600).default(null),
+    intervalWalkSec: optionalInt(0, 3600).default(null),
+    intervalRounds: optionalInt(1, 100).default(null),
   })
-  .refine((e) => e.reps !== null || e.durationSec !== null, {
+  // En cardio el objetivo es opcional (distancia, tiempo o intervalos); en el resto, no.
+  .refine((e) => e.type === "cardio" || e.reps !== null || e.durationSec !== null, {
     message: "Indica repeticiones o duración.",
     path: ["reps"],
-  });
+  })
+  .refine(
+    (e) =>
+      [e.intervalRunSec, e.intervalWalkSec, e.intervalRounds].every((x) => x === null) ||
+      [e.intervalRunSec, e.intervalWalkSec, e.intervalRounds].every((x) => x !== null),
+    {
+      message: "Completa los intervalos (correr, andar y repeticiones).",
+      path: ["intervalRunSec"],
+    },
+  );
 
-export type ExerciseInput = z.infer<typeof exerciseInputSchema>;
+export type ExerciseInput = z.input<typeof exerciseInputSchema>;
 
 /** Registro de peso del día. */
 export const weightLogInputSchema = z.object({
@@ -28,6 +42,10 @@ export const weightLogInputSchema = z.object({
   kg: z.number().min(0).max(MAX_KG).nullable(),
   sets: z.number().int().min(1).max(20),
   reps: optionalInt(1, 200),
+  // Cardio: opcionales (el resto de tipos no los usa).
+  distanceKm: z.number().min(0).max(MAX_KM).nullable().default(null),
+  durationSec: optionalInt(1, 86400).default(null),
+  effort: optionalInt(1, 10).default(null),
   note: z
     .string()
     .trim()

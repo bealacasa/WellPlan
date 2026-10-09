@@ -79,13 +79,43 @@ describe("validación", () => {
 describe("etiquetas", () => {
   it("objetivo y fechas", () => {
     expect(
-      targetLabel({ type: "maquina", sets: 3, reps: 12, durationSec: null, targetKg: 22.5 }),
+      targetLabel({
+        type: "maquina",
+        sets: 3,
+        reps: 12,
+        durationSec: null,
+        targetKg: 22.5,
+        targetDistanceKm: null,
+        intervalRunSec: null,
+        intervalWalkSec: null,
+        intervalRounds: null,
+      }),
     ).toBe("3 × 12 · 22,5 kg");
     expect(
-      targetLabel({ type: "estiramiento", sets: 2, reps: null, durationSec: 30, targetKg: null }),
+      targetLabel({
+        type: "estiramiento",
+        sets: 2,
+        reps: null,
+        durationSec: 30,
+        targetKg: null,
+        targetDistanceKm: null,
+        intervalRunSec: null,
+        intervalWalkSec: null,
+        intervalRounds: null,
+      }),
     ).toBe("2 × 30 s");
     expect(
-      targetLabel({ type: "clase", sets: 1, reps: null, durationSec: 3600, targetKg: null }),
+      targetLabel({
+        type: "clase",
+        sets: 1,
+        reps: null,
+        durationSec: 3600,
+        targetKg: null,
+        targetDistanceKm: null,
+        intervalRunSec: null,
+        intervalWalkSec: null,
+        intervalRounds: null,
+      }),
     ).toBe("60 min");
     expect(shortDate("2026-10-09")).toMatch(/^9 oct/);
   });
@@ -94,12 +124,12 @@ describe("etiquetas", () => {
 describe("gráfico de evolución", () => {
   it("un punto por día (el peso máximo), ordenado y dentro del lienzo", () => {
     const points = chartPoints([
-      { date: "2026-10-08", kg: 22.5 },
-      { date: "2026-10-01", kg: 20 },
-      { date: "2026-10-08", kg: 25 },
-      { date: "2026-10-05", kg: null },
+      { date: "2026-10-08", value: 22.5 },
+      { date: "2026-10-01", value: 20 },
+      { date: "2026-10-08", value: 25 },
+      { date: "2026-10-05", value: null },
     ]);
-    expect(points.map((p) => [p.date, p.kg])).toEqual([
+    expect(points.map((p) => [p.date, p.value])).toEqual([
       ["2026-10-01", 20],
       ["2026-10-08", 25],
     ]);
@@ -108,5 +138,57 @@ describe("gráfico de evolución", () => {
       expect(p.y).toBeGreaterThanOrEqual(0);
     }
     expect(points[1]!.y).toBeLessThan(points[0]!.y); // más peso = más arriba
+  });
+});
+
+describe("cardio", () => {
+  it("distancia con coma, tiempo y ritmo", async () => {
+    const { parseKm, formatDuration, paceSecPerKm, formatPace } = await import("./numbers");
+    expect(parseKm("5,25")).toBe(5.25);
+    expect(parseKm("abc")).toBeNull();
+    expect(formatDuration(1965)).toBe("32:45");
+    expect(formatDuration(3910)).toBe("1:05:10");
+    expect(formatPace(paceSecPerKm(5, 1965)!)).toBe("6:33 /km");
+    expect(paceSecPerKm(null, 100)).toBeNull();
+  });
+
+  it("objetivo e intervalos CaCo en la etiqueta", async () => {
+    const { targetLabel, intervalLabel, logSummary } = await import("./labels");
+    const run = {
+      type: "cardio" as const,
+      sets: 1,
+      reps: null,
+      durationSec: 1800,
+      targetKg: null,
+      targetDistanceKm: 5,
+      intervalRunSec: 120,
+      intervalWalkSec: 60,
+      intervalRounds: 8,
+    };
+    expect(intervalLabel(run)).toBe("8 × (2′ correr + 1′ andar)");
+    expect(targetLabel(run)).toBe("5 km · 30 min · 8 × (2′ correr + 1′ andar)");
+    expect(
+      targetLabel({ ...run, targetDistanceKm: null, durationSec: null, intervalRounds: null }),
+    ).toBe("Libre");
+    expect(
+      logSummary(
+        { kg: null, sets: 1, reps: null, distanceKm: 5, durationSec: 1965, effort: 7 },
+        "cardio",
+      ),
+    ).toBe("5 km · 32:45 · 6:33 /km · esfuerzo 7/10");
+  });
+
+  it("los intervalos van completos o no van", () => {
+    const base = {
+      name: "Correr",
+      type: "cardio" as const,
+      physioNotes: "",
+      sets: 1,
+      reps: null,
+      durationSec: null,
+      targetKg: null,
+    };
+    expect(exerciseInputSchema.safeParse(base).success).toBe(true);
+    expect(exerciseInputSchema.safeParse({ ...base, intervalRunSec: 60 }).success).toBe(false);
   });
 });

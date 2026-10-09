@@ -50,6 +50,13 @@ const ClassIcon = (p: IconProps) => (
   </Svg>
 );
 
+const RunIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="15" cy="4" r="2" />
+    <path d="M7 21l3-6 3 2v5M10 15l1-5 4 2 3 1M11 10L8 9l-3 3M4 21h3" />
+  </Svg>
+);
+
 /**
  * Color e icono de cada tipo de ejercicio (contraste AA en claro y oscuro). Sirve para
  * reconocer de un vistazo qué toca, también cuando el ejercicio no tiene foto.
@@ -77,6 +84,11 @@ export const TYPE_STYLE: Record<
     Icon: StretchIcon,
     tile: "bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-300",
     chip: "bg-pink-100 text-pink-800 dark:bg-pink-950 dark:text-pink-200",
+  },
+  cardio: {
+    Icon: RunIcon,
+    tile: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+    chip: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200",
   },
   clase: {
     Icon: ClassIcon,

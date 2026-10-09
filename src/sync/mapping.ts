@@ -34,6 +34,11 @@ export const exerciseRowSchema = z.object({
   reps: z.number().int().nullable(),
   duration_sec: z.number().int().nullable(),
   target_kg: numeric.nullable(),
+  // Columnas añadidas en la migración 0004 (opcionales por compatibilidad).
+  target_distance_km: numeric.nullable().optional(),
+  interval_run_sec: z.number().int().nullable().optional(),
+  interval_walk_sec: z.number().int().nullable().optional(),
+  interval_rounds: z.number().int().nullable().optional(),
 });
 
 export const photoRowSchema = z.object({
@@ -50,6 +55,9 @@ export const weightLogRowSchema = z.object({
   kg: numeric.nullable(),
   sets: z.number().int(),
   reps: z.number().int().nullable(),
+  distance_km: numeric.nullable().optional(),
+  duration_sec: z.number().int().nullable().optional(),
+  effort: z.number().int().min(1).max(10).nullable().optional(),
   note: z.string().max(500).nullable(),
 });
 
@@ -83,6 +91,10 @@ export const exerciseMapping = {
     reps: e.reps,
     duration_sec: e.durationSec,
     target_kg: e.targetKg,
+    target_distance_km: e.targetDistanceKm,
+    interval_run_sec: e.intervalRunSec,
+    interval_walk_sec: e.intervalWalkSec,
+    interval_rounds: e.intervalRounds,
   }),
   fromRemote: (raw: unknown): Exercise => {
     const row = exerciseRowSchema.parse(raw);
@@ -96,6 +108,10 @@ export const exerciseMapping = {
       reps: row.reps,
       durationSec: row.duration_sec,
       targetKg: row.target_kg,
+      targetDistanceKm: row.target_distance_km ?? null,
+      intervalRunSec: row.interval_run_sec ?? null,
+      intervalWalkSec: row.interval_walk_sec ?? null,
+      intervalRounds: row.interval_rounds ?? null,
     };
   },
 };
@@ -108,6 +124,9 @@ export const weightLogMapping = {
     kg: l.kg,
     sets: l.sets,
     reps: l.reps,
+    distance_km: l.distanceKm,
+    duration_sec: l.durationSec,
+    effort: l.effort,
     note: l.note,
   }),
   fromRemote: (raw: unknown): WeightLog => {
@@ -119,6 +138,9 @@ export const weightLogMapping = {
       kg: row.kg,
       sets: row.sets,
       reps: row.reps,
+      distanceKm: row.distance_km ?? null,
+      durationSec: row.duration_sec ?? null,
+      effort: row.effort ?? null,
       note: row.note,
     };
   },
@@ -158,7 +180,8 @@ export const sessionRowSchema = z.object({
 export const planRowSchema = z.object({
   ...syncColumns,
   weekday: z.number().int().min(1).max(7),
-  session_id: z.uuid(),
+  session_id: z.uuid().nullable(),
+  exercise_id: z.uuid().nullable().optional(),
   position: z.number().int(),
 });
 
@@ -183,6 +206,7 @@ export const planMapping = {
     ...syncToRemote(p),
     weekday: p.weekday,
     session_id: p.sessionId,
+    exercise_id: p.exerciseId,
     position: p.position,
   }),
   fromRemote: (raw: unknown): PlanEntry => {
@@ -191,6 +215,7 @@ export const planMapping = {
       ...syncFromRemote(row),
       weekday: row.weekday,
       sessionId: row.session_id,
+      exerciseId: row.exercise_id ?? null,
       position: row.position,
     };
   },

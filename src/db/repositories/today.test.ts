@@ -35,29 +35,29 @@ describe("pantalla Hoy", () => {
     ];
     const pierna = await createSession({ name: "Pierna", exerciseIds: [remo, prensa] });
     const clase = await createSession({ name: "Clase", exerciseIds: [pilates] });
-    await addToDay(4, pierna); // jueves
-    await addToDay(4, clase);
-    await addToDay(1, clase); // lunes: no debe salir
+    await addToDay(4, { sessionId: pierna }); // jueves
+    await addToDay(4, { sessionId: clase });
+    await addToDay(1, { sessionId: clase }); // lunes: no debe salir
     await addLog(prensa, { date: "2026-10-08", kg: 40, sets: 3, reps: 12, note: null });
     await addLog(remo, { date: "2026-10-07", kg: 20, sets: 3, reps: 12, note: null }); // ayer
 
     const plan = await getTodayPlan(THURSDAY);
-    expect(plan.sessions.map((s) => s.session.name)).toEqual(["Pierna", "Clase"]);
-    expect(plan.sessions[0]!.exercises.map((e) => e.name)).toEqual(["Remo", "Prensa"]);
+    expect(plan.items.map((s) => s.title)).toEqual(["Pierna", "Clase"]);
+    expect(plan.items[0]!.exercises.map((e) => e.name)).toEqual(["Remo", "Prensa"]);
     expect([...plan.done]).toEqual([prensa]);
   });
 
   it("ignora ejercicios borrados y avisa si aún no hay nada creado", async () => {
     let plan = await getTodayPlan(THURSDAY);
-    expect(plan).toMatchObject({ sessions: [], hasExercises: false, hasSessions: false });
+    expect(plan).toMatchObject({ items: [], hasExercises: false, hasSessions: false });
 
     const a = await exercise("A");
     const b = await exercise("B");
     const s = await createSession({ name: "S", exerciseIds: [a, b] });
-    await addToDay(4, s);
+    await addToDay(4, { sessionId: s });
     await deleteExercise(a);
     plan = await getTodayPlan(THURSDAY);
-    expect(plan.sessions[0]!.exercises.map((e) => e.name)).toEqual(["B"]);
+    expect(plan.items[0]!.exercises.map((e) => e.name)).toEqual(["B"]);
   });
 });
 

@@ -15,8 +15,8 @@ import {
 import { usePhotoUrl } from "@/db/repositories/photos";
 import { EXERCISE_TYPES, type Exercise, type ExerciseType } from "@/db/types";
 import type { ProcessedImage } from "@/lib/image";
-import { EXERCISE_TYPE_LABEL, isClass, usesDuration, usesKg } from "@/lib/labels";
-import { formatKg, parseKg } from "@/lib/numbers";
+import { EXERCISE_TYPE_LABEL, isCardio, isClass, usesDuration, usesKg } from "@/lib/labels";
+import { formatKg, parseKg, parseKm } from "@/lib/numbers";
 import { exerciseInputSchema } from "@/lib/validation";
 
 /** Alta (/ejercicios/nuevo) y edición (/ejercicios/:id/editar). */
@@ -52,6 +52,19 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
   const [classMinutes, setClassMinutes] = useState(
     exercise?.type === "clase" && exercise.durationSec ? Math.round(exercise.durationSec / 60) : 60,
   );
+  // Cardio: objetivos opcionales de distancia, tiempo e intervalos CaCo (en minutos enteros).
+  const [targetKm, setTargetKm] = useState(
+    exercise?.targetDistanceKm != null ? formatKg(exercise.targetDistanceKm) : "",
+  );
+  const [cardioMinutes, setCardioMinutes] = useState(
+    exercise?.type === "cardio" && exercise.durationSec
+      ? String(Math.round(exercise.durationSec / 60))
+      : "",
+  );
+  const [useIntervals, setUseIntervals] = useState(exercise?.intervalRounds != null);
+  const [runMin, setRunMin] = useState(Math.round((exercise?.intervalRunSec ?? 120) / 60));
+  const [walkMin, setWalkMin] = useState(Math.round((exercise?.intervalWalkSec ?? 60) / 60));
+  const [rounds, setRounds] = useState(exercise?.intervalRounds ?? 8);
   const [targetKg, setTargetKg] = useState(
     exercise?.targetKg != null ? formatKg(exercise.targetKg) : "",
   );
@@ -66,14 +79,38 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
       setError("El peso objetivo debe ser un número entre 0 y 500 (por ejemplo 22,5).");
       return;
     }
+    const cardio = isCardio(type);
+    const km = cardio && targetKm.trim() !== "" ? parseKm(targetKm) : null;
+    if (cardio && targetKm.trim() !== "" && km === null) {
+      setError("La distancia debe ser un número de km (por ejemplo 5,5).");
+      return;
+    }
+    const minutes = cardio && cardioMinutes.trim() !== "" ? Number(cardioMinutes) : null;
+    if (minutes !== null && !(Number.isInteger(minutes) && minutes >= 1 && minutes <= 180)) {
+      setError("El tiempo objetivo debe estar entre 1 y 180 minutos.");
+      return;
+    }
+    const intervals = cardio && useIntervals;
     const parsed = exerciseInputSchema.safeParse({
       name,
       type,
       physioNotes,
-      sets: isClass(type) ? 1 : sets,
-      reps: usesDuration(type) ? null : reps,
-      durationSec: isClass(type) ? classMinutes * 60 : usesDuration(type) ? durationSec : null,
+      sets: isClass(type) || cardio ? 1 : sets,
+      reps: usesDuration(type) || cardio ? null : reps,
+      durationSec: isClass(type)
+        ? classMinutes * 60
+        : cardio
+          ? minutes !== null
+            ? minutes * 60
+            : null
+          : usesDuration(type)
+            ? durationSec
+            : null,
       targetKg: usesKg(type) ? kg : null,
+      targetDistanceKm: km,
+      intervalRunSec: intervals ? runMin * 60 : null,
+      intervalWalkSec: intervals ? walkMin * 60 : null,
+      intervalRounds: intervals ? rounds : null,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Revisa los datos.");
@@ -165,7 +202,81 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
           />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        {isCardio(type) && (
+          <fieldset className="space-y-4 rounded-3xl border border-border p-4">
+            <legend className="px-1 text-sm font-bold">Objetivo (opcional)</legend>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="target-km" className="text-sm font-medium">
+                  Distancia (km)
+                </label>
+                <input
+                  id="target-km"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="Ej.: 5"
+                  value={targetKm}
+                  onChange={(e) => setTargetKm(e.target.value)}
+                  className={`${inputClass} mt-1 text-center text-lg font-bold`}
+                />
+              </div>
+              <div>
+                <label htmlFor="target-min" className="text-sm font-medium">
+                  Tiempo (min)
+                </label>
+                <input
+                  id="target-min"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="off"
+                  placeholder="Ej.: 30"
+                  value={cardioMinutes}
+                  onChange={(e) => setCardioMinutes(e.target.value.replace(/D/g, ""))}
+                  className={`${inputClass} mt-1 text-center text-lg font-bold`}
+                />
+              </div>
+            </div>
+            <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-2xl bg-surface-2 px-4 font-semibold">
+              <input
+                type="checkbox"
+                checked={useIntervals}
+                onChange={(e) => setUseIntervals(e.target.checked)}
+                className="size-6 accent-[var(--accent)]"
+              />
+              Intervalos CaCo (caminar-correr)
+            </label>
+            {useIntervals && (
+              <div className="grid gap-3">
+                <NumberStepper
+                  id="run-min"
+                  label="Correr (min)"
+                  value={runMin}
+                  onChange={setRunMin}
+                  min={1}
+                  max={60}
+                />
+                <NumberStepper
+                  id="walk-min"
+                  label="Andar (min)"
+                  value={walkMin}
+                  onChange={setWalkMin}
+                  min={0}
+                  max={60}
+                />
+                <NumberStepper
+                  id="rounds"
+                  label="Repeticiones"
+                  value={rounds}
+                  onChange={setRounds}
+                  min={1}
+                  max={100}
+                />
+              </div>
+            )}
+          </fieldset>
+        )}
+
+        <div className={`grid gap-4 sm:grid-cols-2 ${isCardio(type) ? "hidden" : ""}`}>
           {isClass(type) ? (
             <NumberStepper
               id="class-minutes"
