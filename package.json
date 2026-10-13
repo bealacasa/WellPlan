@@ -21,7 +21,7 @@
     "db:types": "supabase gen types typescript --linked --schema public > src/sync/database.types.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "2.117.1",
+    "@supabase/supabase-js": "2.117.2",
     "dexie": "4.4.6",
     "dexie-react-hooks": "4.4.0",
     "react": "19.3.0",
@@ -47,13 +47,13 @@
     "globals": "17.12.0",
     "jsdom": "30.1.1",
     "prettier": "3.9.9",
-    "supabase": "2.117.0",
+    "supabase": "2.118.0",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.70.1",
+    "typescript-eslint": "8.71.0",
     "vite": "8.3.1",
     "vite-plugin-pwa": "1.3.0",
-    "vitest": "5.0.1"
+    "vitest": "5.0.2"
   },
   "overrides": {
     "workbox-build": "7.4.1"
