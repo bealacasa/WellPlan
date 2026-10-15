@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "react-router";
+import { TYPE_STYLE } from "@/components/typeStyle";
 import { Card, EmptyState, PageHeader, buttonSecondary } from "@/components/ui";
 import {
   streakLabel,
@@ -34,6 +35,7 @@ export function ProgressPage() {
           <WeekCard progress={progress} />
           <WeeksChart progress={progress} />
           <ClassesCard progress={progress} />
+          <ExercisesCard progress={progress} />
         </div>
       )}
     </>
@@ -167,6 +169,51 @@ function WeeksChart({ progress: p }: { progress: Progress }) {
           </li>
         ))}
       </ul>
+    </Card>
+  );
+}
+
+/** Ejercicios hechos este mes (días distintos), con enlace a su ficha e historial. */
+function ExercisesCard({ progress: p }: { progress: Progress }) {
+  const total = p.exercisesThisMonth.length;
+  return (
+    <Card>
+      <h2 className="text-lg font-bold">Ejercicios este mes</h2>
+      {total === 0 ? (
+        <p className="mt-1 text-muted">Todavía ninguno. Regístralos en Hoy o en su ficha.</p>
+      ) : (
+        <>
+          <p className="mt-1 text-3xl font-extrabold tracking-tight tabular-nums">
+            {total} {total === 1 ? "ejercicio" : "ejercicios"}
+          </p>
+          <ul className="mt-3 space-y-2">
+            {p.exercisesThisMonth.map((e) => {
+              const style = TYPE_STYLE[e.type];
+              return (
+                <li key={e.id}>
+                  <Link
+                    to={`/ejercicios/${e.id}`}
+                    className="flex min-h-12 items-center gap-3 rounded-2xl bg-surface-2 px-4 py-3 active:scale-[0.99]"
+                  >
+                    <span
+                      className={`grid size-8 shrink-0 place-items-center rounded-lg ${style.tile}`}
+                    >
+                      <style.Icon className="size-5" />
+                    </span>
+                    <span className="min-w-0 flex-1 font-semibold">{e.name}</span>
+                    <span className="font-bold tabular-nums">
+                      × {e.count} <span aria-hidden="true">›</span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-2 text-sm text-muted">
+            Días que has hecho cada uno. Toca uno para ver su historial.
+          </p>
+        </>
+      )}
     </Card>
   );
 }
