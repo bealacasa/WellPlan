@@ -78,9 +78,22 @@ describe("progreso", () => {
     }
     const p = await getProgress(WEDNESDAY);
     expect(p.classesThisMonth).toEqual([{ id: exerciseId, name: "Pilates", count: 2 }]);
+    expect(p.exercisesThisMonth).toEqual([]);
     expect(p.allClasses).toEqual([{ id: exerciseId, name: "Pilates" }]);
     // Solo está planificado el martes (la clase marcada).
     expect(p.plannedPerWeek).toBe(1);
+  });
+});
+
+describe("ejercicios este mes", () => {
+  it("cuenta días distintos por ejercicio, sin las clases ni otros meses", async () => {
+    const prensa = await strength();
+    for (const d of ["2026-10-02", "2026-10-09", "2026-10-09", "2026-09-30"]) await log(prensa, d);
+    const p = await getProgress(WEDNESDAY);
+    expect(p.exercisesThisMonth).toEqual([
+      { id: prensa, name: expect.any(String), type: "maquina", count: 2 },
+    ]);
+    expect(p.classesThisMonth).toEqual([]);
   });
 });
 

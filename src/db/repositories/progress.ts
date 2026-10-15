@@ -3,7 +3,7 @@ import { addDays, localDateKey, startOfWeek } from "@/lib/dates";
 import { buildReport, type Report } from "@/lib/report";
 import { db } from "../database";
 import { isAlive } from "../records";
-import type { Exercise, WeightLog } from "../types";
+import type { Exercise, ExerciseType, WeightLog } from "../types";
 
 /*
  * Progreso calculado a partir de los registros (un día "entrenado" = cualquier registro ese
@@ -25,6 +25,8 @@ export type Progress = {
   lastWeeks: { start: string; trained: number }[];
   /** Clases hechas este mes, de más a menos. */
   classesThisMonth: { id: string; name: string; count: number }[];
+  /** Ejercicios (sin las clases) hechos este mes, de más a menos días. */
+  exercisesThisMonth: { id: string; name: string; type: ExerciseType; count: number }[];
   /** Todas las clases (para apuntar una que no aparece este mes). */
   allClasses: { id: string; name: string }[];
 };
@@ -76,18 +78,26 @@ export async function getProgress(today: Date): Promise<Progress> {
   });
 
   const monthPrefix = localDateKey(today).slice(0, 7); // "YYYY-MM"
+  const aliveExercises = new Map(exercises.filter(isAlive).map((e) => [e.id, e]));
   const classNames = new Map(
-    exercises.filter((e) => isAlive(e) && e.type === "clase").map((e) => [e.id, e.name]),
+    [...aliveExercises.values()].filter((e) => e.type === "clase").map((e) => [e.id, e.name]),
   );
-  // Días distintos por clase (marcarla dos veces el mismo día cuenta una).
+  // Días distintos por ejercicio (registrarlo dos veces el mismo día cuenta una).
   const days = new Map<string, Set<string>>();
   for (const log of aliveLogs) {
-    if (!classNames.has(log.exerciseId) || !log.date.startsWith(monthPrefix)) continue;
+    if (!aliveExercises.has(log.exerciseId) || !log.date.startsWith(monthPrefix)) continue;
     days.set(log.exerciseId, (days.get(log.exerciseId) ?? new Set()).add(log.date));
   }
-  const classesThisMonth = [...days]
-    .map(([id, dates]) => ({ id, name: classNames.get(id) ?? "", count: dates.size }))
+  const thisMonth = [...days]
+    .flatMap(([id, dates]) => {
+      const exercise = aliveExercises.get(id);
+      return exercise ? [{ id, name: exercise.name, type: exercise.type, count: dates.size }] : [];
+    })
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "es"));
+  const classesThisMonth = thisMonth
+    .filter((e) => e.type === "clase")
+    .map(({ id, name, count }) => ({ id, name, count }));
+  const exercisesThisMonth = thisMonth.filter((e) => e.type !== "clase");
   const allClasses = [...classNames]
     .map(([id, name]) => ({ id, name }))
     .sort((a, b) => a.name.localeCompare(b.name, "es"));
@@ -99,6 +109,7 @@ export async function getProgress(today: Date): Promise<Progress> {
     streak,
     lastWeeks,
     classesThisMonth,
+    exercisesThisMonth,
     allClasses,
   };
 }
