@@ -5,6 +5,7 @@ import { notifyLocalChange } from "../changes";
 import { db } from "../database";
 import { createRecord, isAlive, tombstone, touch } from "../records";
 import type { Exercise, Photo, WeightLog } from "../types";
+import { removeExtrasOf } from "./dayExtras";
 import { unlinkExerciseFromClasses } from "./gymClasses";
 import { newPhoto } from "./photos";
 import { removeExerciseFromPlan } from "./plan";
@@ -81,7 +82,15 @@ export async function updateExercise(
 export async function deleteExercise(id: string): Promise<void> {
   await db.transaction(
     "rw",
-    [db.exercises, db.photos, db.weightLogs, db.sessions, db.planEntries, db.gymClasses],
+    [
+      db.exercises,
+      db.photos,
+      db.weightLogs,
+      db.sessions,
+      db.planEntries,
+      db.gymClasses,
+      db.dayExtras,
+    ],
     async () => {
       const current = await db.exercises.get(id);
       if (!isAlive(current)) return;
@@ -93,6 +102,7 @@ export async function deleteExercise(id: string): Promise<void> {
       await removeExerciseFromSessions(id);
       await removeExerciseFromPlan(id);
       await unlinkExerciseFromClasses(id);
+      await removeExtrasOf({ exerciseId: id });
     },
   );
   notifyLocalChange();

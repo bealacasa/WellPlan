@@ -5,13 +5,14 @@ import { SessionPhoto } from "@/components/SessionPhoto";
 import { TypeChip } from "@/components/typeStyle";
 import { Card, buttonPrimary } from "@/components/ui";
 import { streakLabel, useProgress, weekSummary } from "@/db/repositories/progress";
+import { addExtra, removeExtra } from "@/db/repositories/dayExtras";
 import { useTodayPlan, type TodayPlan } from "@/db/repositories/today";
 import { deleteLog, quickLog, restoreLogs, unmarkDay } from "@/db/repositories/weightLogs";
 import type { Exercise, WeightLog } from "@/db/types";
 import { localDateKey } from "@/lib/dates";
 import { EXERCISE_TYPE_LABEL, isClass, logSummary, targetLabel } from "@/lib/labels";
 import { formatKg } from "@/lib/numbers";
-import { hadDiscomfort, quickLogInput } from "@/lib/progression";
+import { asksFeeling, needsReview, quickLogInput } from "@/lib/progression";
 
 /** Lo que necesita cada fila: últimos registros, sugerencias y el registro de un toque. */
 type RowState = {
@@ -88,7 +89,9 @@ export function TodayPage() {
       <PasskeyNudge />
 
       {plan === undefined ? null : plan.items.length === 0 ? (
-        <NothingToday plan={plan} />
+        plan.hasExercises ? null : (
+          <NothingToday />
+        )
       ) : (
         <div className="space-y-4">
           {plan.items.map((item) =>
@@ -101,6 +104,7 @@ export function TodayPage() {
                 done={plan.done}
                 open={openIds.has(item.entryId)}
                 onToggle={() => toggle(item.entryId)}
+                onRemove={item.extra ? () => void removeExtra(item.entryId) : undefined}
               />
             ) : (
               <Card key={item.entryId}>
@@ -114,14 +118,99 @@ export function TodayPage() {
                   </p>
                 )}
                 <ExerciseList title={item.title} exercises={item.exercises} done={plan.done} />
+                {item.extra && <RemoveFromToday onRemove={() => void removeExtra(item.entryId)} />}
               </Card>
             ),
           )}
         </div>
       )}
+      {plan?.hasExercises && <AddToToday plan={plan} date={localDateKey(now)} />}
       {plan?.hasExercises && <ProgressLink today={now} />}
       {toast}
     </RowContext>
+  );
+}
+
+/** Quitar algo añadido solo para hoy (el plan semanal no cambia). */
+function RemoveFromToday({ onRemove }: { onRemove: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onRemove}
+      className="mt-3 min-h-11 w-full rounded-xl font-semibold text-muted underline"
+    >
+      Quitar de hoy
+    </button>
+  );
+}
+
+/**
+ * Añadir una sesión o un ejercicio SOLO para hoy (p. ej. hoy me apetece Yoga): no toca el
+ * plan semanal. Si no existe aún, enlaces para crearlo.
+ */
+function AddToToday({ plan, date }: { plan: TodayPlan; date: string }) {
+  const { sessions, exercises } = plan.addable;
+  return (
+    <Card className="mt-4">
+      <h2 className="text-lg font-bold">
+        {plan.items.length === 0 ? "Hoy no tienes nada planificado" : "¿Algo más hoy?"}
+      </h2>
+      <p className="text-sm text-muted">
+        {plan.items.length === 0 ? "Descansa, o añade algo solo para hoy. " : ""}
+        Se añade solo para hoy; tu plan semanal no cambia.
+      </p>
+      {(sessions.length > 0 || exercises.length > 0) && (
+        <>
+          <label htmlFor="add-today" className="sr-only">
+            Añadir solo para hoy
+          </label>
+          <select
+            id="add-today"
+            value=""
+            onChange={(e) => {
+              const [kind, id] = e.target.value.split(":");
+              if (!id) return;
+              void addExtra(date, kind === "s" ? { sessionId: id } : { exerciseId: id });
+            }}
+            className="mt-3 min-h-12 w-full rounded-xl border border-dashed border-border bg-transparent px-3 font-medium"
+          >
+            <option value="">+ Añadir sesión o ejercicio…</option>
+            {sessions.length > 0 && (
+              <optgroup label="Sesiones">
+                {sessions.map((s) => (
+                  <option key={s.id} value={`s:${s.id}`}>
+                    {s.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {exercises.length > 0 && (
+              <optgroup label="Ejercicios">
+                {exercises.map((e) => (
+                  <option key={e.id} value={`e:${e.id}`}>
+                    {e.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </>
+      )}
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Link
+          to="/ejercicios/nuevo"
+          className="min-h-11 content-center rounded-xl bg-surface-2 text-center font-semibold"
+        >
+          + Nuevo ejercicio
+        </Link>
+        <Link
+          to="/sesiones/nueva"
+          className="min-h-11 content-center rounded-xl bg-surface-2 text-center font-semibold"
+        >
+          + Nueva sesión
+        </Link>
+      </div>
+    </Card>
   );
 }
 
@@ -195,6 +284,7 @@ function SessionCard({
   done,
   open,
   onToggle,
+  onRemove,
 }: {
   title: string;
   photoId: string | null;
@@ -202,6 +292,8 @@ function SessionCard({
   done: ReadonlySet<string>;
   open: boolean;
   onToggle: () => void;
+  /** Solo si se añadió solo para hoy. */
+  onRemove?: () => void;
 }) {
   const listId = useId();
   const doneCount = exercises.filter((e) => done.has(e.id)).length;
@@ -257,6 +349,7 @@ function SessionCard({
       </h2>
       <div id={listId} hidden={!open} className="mt-4">
         <ExerciseList title={title} exercises={exercises} done={done} numbered />
+        {onRemove && <RemoveFromToday onRemove={onRemove} />}
       </div>
     </Card>
   );
@@ -305,8 +398,8 @@ function ExerciseRow({
   const last = state?.lastLogs.get(exercise.id) ?? null;
   const suggestion = isDone ? undefined : state?.suggestions.get(exercise.id);
   const quick = !isDone && state ? quickLogInput(exercise, last) : null;
-  // La última vez hubo molestias: no se repite de un toque, se registra en la ficha.
-  const discomfort = !isDone && hadDiscomfort(last);
+  // La última vez hubo molestias (o una nota): no se repite de un toque, se revisa en la ficha.
+  const review = !isDone && needsReview(exercise.type, last);
   // Cardio: se muestra el objetivo (del día); el resto, lo que se registraría.
   const detail =
     last && exercise.type !== "cardio" && !isClass(exercise.type)
@@ -320,7 +413,7 @@ function ExerciseRow({
       }`}
     >
       <Link
-        to={`/ejercicios/${exercise.id}`}
+        to={`/hoy/${exercise.id}`}
         className="flex min-w-0 flex-1 items-center gap-3 active:scale-[0.99]"
       >
         {index !== null && (
@@ -343,9 +436,9 @@ function ExerciseRow({
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
             <TypeChip type={exercise.type} label={EXERCISE_TYPE_LABEL[exercise.type]} />
             {detail}
-            {discomfort && (
+            {review && (
               <span className="rounded-full bg-danger/15 px-2 py-0.5 font-bold text-danger">
-                Molestias la última vez
+                {asksFeeling(exercise.type) ? "Molestias la última vez" : "Nota la última vez"}
               </span>
             )}
             {suggestion !== undefined && (
@@ -445,20 +538,7 @@ export function progressWidth(percent: number): string {
 }
 
 /** Nada planificado hoy: guía de primeros pasos o recordatorio de descanso. */
-function NothingToday({ plan }: { plan: TodayPlan }) {
-  if (plan.hasExercises) {
-    return (
-      <Card>
-        <h2 className="text-xl font-bold">Hoy no tienes nada planificado</h2>
-        <p className="mt-1 text-muted">
-          Descansa, o asigna una sesión o un ejercicio a este día en el plan.
-        </p>
-        <Link to="/plan" className={`${buttonPrimary} mt-4`}>
-          Ver el plan semanal
-        </Link>
-      </Card>
-    );
-  }
+function NothingToday() {
   const steps = [
     "Añade tus ejercicios con foto e indicaciones",
     "Si quieres, agrúpalos en sesiones (p. ej. «Pierna + core»)",

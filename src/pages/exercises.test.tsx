@@ -28,7 +28,7 @@ beforeEach(async () => {
 describe("flujo de ejercicios", () => {
   it("crear, registrar el peso de hoy con ±2,5 y ver el historial", async () => {
     const user = userEvent.setup();
-    renderAt("/ejercicios");
+    const memory = renderAt("/ejercicios");
 
     await user.click(await screen.findByRole("link", { name: "+ Añadir ejercicio" }));
     await user.type(await screen.findByLabelText("Nombre"), "Prensa de piernas");
@@ -38,12 +38,17 @@ describe("flujo de ejercicios", () => {
     await user.type(target, "20");
     await user.click(screen.getByRole("button", { name: "Guardar ejercicio" }));
 
-    // Ficha del ejercicio: el formulario rápido parte del peso objetivo.
+    // Ficha (pestaña Ejercicios): indicaciones y «Editar», sin formulario de registro.
     expect(
       await screen.findByRole("heading", { name: "Prensa de piernas", level: 1 }),
     ).toBeTruthy();
     expect(screen.getByText("No bloquear rodillas")).toBeTruthy();
-    const kg = screen.getByLabelText("Peso") as HTMLInputElement;
+    expect(screen.getByRole("link", { name: "Editar" })).toBeTruthy();
+    expect(screen.queryByLabelText("Peso")).toBeNull();
+
+    // Registrar se hace desde Hoy: el formulario parte del peso objetivo.
+    await memory.navigate(`/hoy/${(await db.exercises.toArray())[0]!.id}`);
+    const kg = (await screen.findByLabelText("Peso")) as HTMLInputElement;
     expect(kg.value).toBe("20");
 
     await user.click(screen.getByRole("button", { name: "Sumar 2,5 kilos" }));
@@ -62,9 +67,11 @@ describe("flujo de ejercicios", () => {
 
   it("rechaza kilos no válidos sin guardar", async () => {
     const user = userEvent.setup();
-    renderAt("/ejercicios/nuevo");
+    const memory = renderAt("/ejercicios/nuevo");
     await user.type(await screen.findByLabelText("Nombre"), "Curl");
     await user.click(screen.getByRole("button", { name: "Guardar ejercicio" }));
+    await screen.findByRole("heading", { name: "Curl", level: 1 });
+    await memory.navigate(`/hoy/${(await db.exercises.toArray())[0]!.id}`);
 
     const kg = await screen.findByLabelText("Peso");
     await user.clear(kg);
@@ -82,7 +89,7 @@ describe("flujo de ejercicios", () => {
     renderAt("/ejercicios/nuevo");
     await user.type(await screen.findByLabelText("Nombre"), "Remo");
     await user.click(screen.getByRole("button", { name: "Guardar ejercicio" }));
-    await user.click(await screen.findByRole("link", { name: "Editar ejercicio" }));
+    await user.click(await screen.findByRole("link", { name: "Editar" }));
 
     await user.click(await screen.findByRole("button", { name: "Borrar ejercicio" }));
     const dialog = await screen.findByRole("dialog");
@@ -100,7 +107,7 @@ describe("flujo de ejercicios", () => {
 describe("tipo clase", () => {
   it("se mide en minutos y sin series, y se registra como hecha", async () => {
     const user = userEvent.setup();
-    renderAt("/ejercicios/nuevo");
+    const memory = renderAt("/ejercicios/nuevo");
     await user.type(await screen.findByLabelText("Nombre"), "Pilates");
     await user.click(screen.getByLabelText("Clase"));
     expect(screen.queryByLabelText("Series")).toBeNull();
@@ -108,8 +115,9 @@ describe("tipo clase", () => {
     await user.click(screen.getByRole("button", { name: "Guardar ejercicio" }));
 
     expect(await screen.findByText(/Clase · 60 min/)).toBeTruthy();
+    await memory.navigate(`/hoy/${(await db.exercises.toArray())[0]!.id}`);
     expect(screen.queryByLabelText("Peso")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Marcar como hecha" }));
+    await user.click(await screen.findByRole("button", { name: "Marcar como hecha" }));
     await vi.waitFor(async () => expect(await db.weightLogs.count()).toBe(1), { timeout: 5000 });
     const stored = (await db.exercises.toArray())[0]!;
     expect(stored).toMatchObject({ type: "clase", sets: 1, durationSec: 3600, reps: null });
@@ -119,7 +127,7 @@ describe("tipo clase", () => {
 describe("peso corporal por tiempo", () => {
   it("una plancha se mide en segundos y se registra el tiempo aguantado", async () => {
     const user = userEvent.setup();
-    renderAt("/ejercicios/nuevo");
+    const memory = renderAt("/ejercicios/nuevo");
     await user.type(await screen.findByLabelText("Nombre"), "Plancha frontal");
     await user.click(screen.getByLabelText("Peso corporal"));
     await user.click(screen.getByRole("radio", { name: "Tiempo" }));
@@ -130,7 +138,8 @@ describe("peso corporal por tiempo", () => {
     const stored = (await db.exercises.toArray())[0]!;
     expect(stored).toMatchObject({ type: "peso_corporal", reps: null, durationSec: 30 });
 
-    expect((screen.getByLabelText("Segundos") as HTMLInputElement).value).toBe("30");
+    await memory.navigate(`/hoy/${stored.id}`);
+    expect(((await screen.findByLabelText("Segundos")) as HTMLInputElement).value).toBe("30");
     await user.click(screen.getByRole("button", { name: "Guardar" }));
     await vi.waitFor(async () => expect(await db.weightLogs.count()).toBe(1), { timeout: 5000 });
     expect((await db.weightLogs.toArray())[0]).toMatchObject({ durationSec: 30, reps: null });

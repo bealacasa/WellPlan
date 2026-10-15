@@ -4,7 +4,7 @@ import { MAX_KG, stepKg } from "./numbers";
 
 /** Lo mínimo de un registro que hace falta para decidir. */
 type LogLike = Pick<WeightLog, "date" | "kg" | "sets" | "reps" | "durationSec"> &
-  Partial<Pick<WeightLog, "feeling" | "painArea">>;
+  Partial<Pick<WeightLog, "feeling" | "painArea" | "note">>;
 
 /** Por debajo de esta sensación (0–10) algo no fue bien. */
 export const LOW_FEELING = 6;
@@ -13,6 +13,18 @@ export const LOW_FEELING = 6;
 export const hadDiscomfort = (log: LogLike | null | undefined): boolean =>
   Boolean(log) &&
   ((log?.feeling != null && log.feeling < LOW_FEELING) || (log?.painArea ?? null) !== null);
+
+/** ¿Este tipo de ejercicio pide «¿Cómo te has encontrado?» y zona? Solo clases y cardio. */
+export const asksFeeling = (type: Exercise["type"]) => isClass(type) || isCardio(type);
+
+/**
+ * ¿Hay que revisar antes de repetir de un toque? En clases y cardio, si hubo molestias; en
+ * fuerza y estiramientos (que solo tienen nota), si la última vez se dejó una nota.
+ */
+export function needsReview(type: Exercise["type"], last: LogLike | null | undefined): boolean {
+  if (!last) return false;
+  return asksFeeling(type) ? hadDiscomfort(last) : Boolean(last.note?.trim());
+}
 
 /** Valores de un registro rápido (todo lo de un registro salvo la fecha). */
 export type QuickLogValues = Pick<
@@ -25,13 +37,20 @@ export const PROGRESSION_STEP_KG = 2.5;
 
 /**
  * Registro "igual que la última vez" (o, si nunca se ha hecho, según el objetivo del
- * ejercicio), sin la fecha, y con la sensación a 10 (tocar ✓ = "todo bien").
+ * ejercicio), sin la fecha. En las clases, sensación 10 (tocar ✓ = "todo bien").
  * Devuelve null si no se debe registrar sin preguntar: cardio (hay que meter la distancia
- * y el tiempo reales), falta un dato (kilos, repeticiones) o la última vez hubo molestias.
+ * y el tiempo reales), falta un dato (kilos, repeticiones) o hay algo que revisar
+ * (molestias o una nota la última vez).
  */
 export function quickLogInput(exercise: Exercise, last: LogLike | null): QuickLogValues | null {
-  if (isCardio(exercise.type) || hadDiscomfort(last)) return null;
-  const base = { distanceKm: null, effort: null, feeling: 10, painArea: null, note: null };
+  if (isCardio(exercise.type) || needsReview(exercise.type, last)) return null;
+  const base = {
+    distanceKm: null,
+    effort: null,
+    feeling: asksFeeling(exercise.type) ? 10 : null,
+    painArea: null,
+    note: null,
+  };
   if (isClass(exercise.type)) {
     return { ...base, kg: null, sets: 1, reps: null, durationSec: null };
   }

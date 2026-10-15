@@ -187,3 +187,19 @@ describe("objetivo del día y foto de sesión", () => {
     expect(await otherDevice.photos.get(session!.photoId!)).toBeTruthy();
   });
 });
+
+describe("solo para hoy", () => {
+  it("los extras de un día viajan a otro dispositivo", async () => {
+    const { addExtra } = await import("@/db/repositories/dayExtras");
+    const cloud = fakeCloud();
+    const id = await createExercise(exerciseInput);
+    const extraId = await addExtra("2026-10-15", { exerciseId: id });
+    await syncOnce(db, cloud.client, USER);
+    await syncOnce(otherDevice, cloud.client, USER);
+    expect(await otherDevice.dayExtras.get(extraId)).toMatchObject({
+      date: "2026-10-15",
+      exerciseId: id,
+      sessionId: null,
+    });
+  });
+});

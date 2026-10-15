@@ -3,6 +3,7 @@ import { addDays, localDateKey, startOfWeek } from "@/lib/dates";
 import { buildReport, type Report } from "@/lib/report";
 import { db } from "../database";
 import { isAlive } from "../records";
+import type { Exercise, WeightLog } from "../types";
 
 /*
  * Progreso calculado a partir de los registros (un día "entrenado" = cualquier registro ese
@@ -23,7 +24,9 @@ export type Progress = {
   /** Días entrenados en las últimas 8 semanas, de la más antigua a la actual. */
   lastWeeks: { start: string; trained: number }[];
   /** Clases hechas este mes, de más a menos. */
-  classesThisMonth: { name: string; count: number }[];
+  classesThisMonth: { id: string; name: string; count: number }[];
+  /** Todas las clases (para apuntar una que no aparece este mes). */
+  allClasses: { id: string; name: string }[];
 };
 
 const WEEKS = 8;
@@ -79,15 +82,25 @@ export async function getProgress(today: Date): Promise<Progress> {
   // Días distintos por clase (marcarla dos veces el mismo día cuenta una).
   const days = new Map<string, Set<string>>();
   for (const log of aliveLogs) {
-    const name = classNames.get(log.exerciseId);
-    if (!name || !log.date.startsWith(monthPrefix)) continue;
-    days.set(name, (days.get(name) ?? new Set()).add(log.date));
+    if (!classNames.has(log.exerciseId) || !log.date.startsWith(monthPrefix)) continue;
+    days.set(log.exerciseId, (days.get(log.exerciseId) ?? new Set()).add(log.date));
   }
   const classesThisMonth = [...days]
-    .map(([name, dates]) => ({ name, count: dates.size }))
+    .map(([id, dates]) => ({ id, name: classNames.get(id) ?? "", count: dates.size }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "es"));
+  const allClasses = [...classNames]
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
 
-  return { week, trainedThisWeek, plannedPerWeek, streak, lastWeeks, classesThisMonth };
+  return {
+    week,
+    trainedThisWeek,
+    plannedPerWeek,
+    streak,
+    lastWeeks,
+    classesThisMonth,
+    allClasses,
+  };
 }
 
 export function useProgress(today: Date): Progress | undefined {
@@ -118,4 +131,57 @@ export function useReport(today: Date, weeks: number): Report | undefined {
     ]);
     return buildReport({ exercises, logs, entries, classes }, today, weeks);
   }, [key, weeks]);
+}
+
+export type DayLog = {
+  log: WeightLog;
+  exercise: Exercise;
+};
+
+export type DayDetail = {
+  logs: DayLog[];
+  /** Sesiones con algún ejercicio hecho ese día: cuántos de cuántos. */
+  sessions: { id: string; name: string; done: number; total: number }[];
+};
+
+/** Lo hecho un día concreto: registros (con su ejercicio) y sesiones tocadas. */
+export function useDayDetail(date: string): DayDetail | undefined {
+  return useLiveQuery(async () => {
+    const [logs, exercises, sessions] = await Promise.all([
+      db.weightLogs.where("date").equals(date).toArray(),
+      db.exercises.toArray(),
+      db.sessions.toArray(),
+    ]);
+    const byId = new Map(exercises.filter(isAlive).map((e) => [e.id, e]));
+    const dayLogs = logs
+      .filter(isAlive)
+      .flatMap((log) => {
+        const exercise = byId.get(log.exerciseId);
+        return exercise ? [{ log, exercise }] : [];
+      })
+      .sort((a, b) => a.log.createdAt.localeCompare(b.log.createdAt));
+    const doneIds = new Set(dayLogs.map((d) => d.exercise.id));
+    const touched = sessions
+      .filter((s) => isAlive(s) && s.exerciseIds.some((id) => doneIds.has(id)))
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        done: s.exerciseIds.filter((id) => doneIds.has(id)).length,
+        total: s.exerciseIds.length,
+      }));
+    return { logs: dayLogs, sessions: touched };
+  }, [date]);
+}
+
+/** Días en que se hizo una clase (o cualquier ejercicio), del más reciente al más antiguo. */
+export function useExerciseDays(exerciseId: string | undefined) {
+  return useLiveQuery(async () => {
+    if (!exerciseId) return null;
+    const exercise = await db.exercises.get(exerciseId);
+    if (!isAlive(exercise)) return null;
+    const logs = (await db.weightLogs.where("exerciseId").equals(exerciseId).toArray())
+      .filter(isAlive)
+      .sort((a, b) => b.date.localeCompare(a.date));
+    return { exercise, logs };
+  }, [exerciseId]);
 }

@@ -211,8 +211,13 @@ describe("ilustraciones y series por tiempo", () => {
     expect(illustrationFor("Yoga")).toBe("yoga");
     expect(illustrationFor("Zumba")).toBe("dance");
     // "gap" solo como palabra suelta, no dentro de otra.
-    expect(illustrationFor("Estiramiento de isquios")).toBeNull();
+    expect(illustrationFor("Estiramiento de isquios")).toBe("yoga");
     expect(illustrationFor("Remo")).toBeNull();
+    expect(illustrationFor("Puente de glúteo")).toBe("hip_thrust");
+    expect(illustrationFor("Sentadilla búlgara")).toBe("squat");
+    expect(illustrationFor("Zancada búlgara")).toBe("lunge");
+    expect(illustrationFor("Elíptica")).toBe("spinning");
+    expect(illustrationFor("Abdominales")).toBe("plank");
   });
 
   it("las sesiones sin foto toman el dibujo de su nombre o de su primer ejercicio", async () => {
@@ -231,5 +236,17 @@ describe("ilustraciones y series por tiempo", () => {
         "peso_corporal",
       ),
     ).toBe("3 × 30 s");
+  });
+});
+
+describe("ruta de vuelta segura", () => {
+  it("solo acepta rutas internas conocidas", async () => {
+    const { safeReturnPath } = await import("./navigation");
+    expect(safeReturnPath("/sesiones/abc-123")).toBe("/sesiones/abc-123");
+    expect(safeReturnPath("/sesiones/nueva")).toBe("/sesiones/nueva");
+    expect(safeReturnPath("//evil.com")).toBeNull();
+    expect(safeReturnPath("https://evil.com")).toBeNull();
+    expect(safeReturnPath("/ajustes?x=1")).toBeNull();
+    expect(safeReturnPath(null)).toBeNull();
   });
 });

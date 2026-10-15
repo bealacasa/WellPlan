@@ -113,6 +113,16 @@ export type GymClass = SyncFields & {
   exerciseId: string | null;
 };
 
+/** Algo añadido solo para una fecha concreta ("solo para hoy"), sin tocar el plan. */
+export type DayExtra = SyncFields & {
+  /** Fecha local "YYYY-MM-DD". */
+  date: string;
+  /** Una sesión O un ejercicio (exactamente uno de los dos). */
+  sessionId: string | null;
+  exerciseId: string | null;
+  position: number;
+};
+
 export type MetaEntry = { key: string; value: unknown };
 
 /** Lo que el código de la app puede rellenar al crear un registro (el resto lo pone el repositorio). */

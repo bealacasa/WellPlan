@@ -77,8 +77,18 @@ describe("progreso", () => {
       await addLog(exerciseId, { date: d, kg: null, sets: 1, reps: null, note: null });
     }
     const p = await getProgress(WEDNESDAY);
-    expect(p.classesThisMonth).toEqual([{ name: "Pilates", count: 2 }]);
+    expect(p.classesThisMonth).toEqual([{ id: exerciseId, name: "Pilates", count: 2 }]);
+    expect(p.allClasses).toEqual([{ id: exerciseId, name: "Pilates" }]);
     // Solo está planificado el martes (la clase marcada).
     expect(p.plannedPerWeek).toBe(1);
+  });
+});
+
+describe("la semana actual en el gráfico", () => {
+  it("la última barra cuenta hasta hoy", async () => {
+    const prensa = await strength();
+    await log(prensa, "2026-10-14"); // miércoles = "hoy"
+    const p = await getProgress(WEDNESDAY);
+    expect(p.lastWeeks.at(-1)).toEqual({ start: "2026-10-12", trained: 1 });
   });
 });

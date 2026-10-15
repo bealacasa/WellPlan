@@ -12,11 +12,12 @@ const TABS = [
 ] as const;
 
 /** Pantallas que cuelgan de una pestaña sin estar bajo su ruta: también la iluminan. */
-const ALSO_ACTIVE: Record<string, string> = { "/ejercicios": "/sesiones", "/": "/progreso" };
-const isAlsoActive = (to: string, pathname: string) => {
-  const extra = ALSO_ACTIVE[to];
-  return extra !== undefined && pathname.startsWith(extra);
+const ALSO_ACTIVE: Record<string, string[]> = {
+  "/ejercicios": ["/sesiones"],
+  "/": ["/progreso", "/hoy/"],
 };
+const isAlsoActive = (to: string, pathname: string) =>
+  (ALSO_ACTIVE[to] ?? []).some((prefix) => pathname.startsWith(prefix));
 
 export function Layout() {
   const { atRisk } = useAlerts();

@@ -23,6 +23,8 @@ export type TodayItem = {
   /** Clases: hora de inicio "HH:MM" y detalles (sala, monitor). */
   time?: string;
   detail?: string;
+  /** Añadido solo para hoy (se puede quitar sin tocar el plan). */
+  extra?: boolean;
 };
 
 export type TodayPlan = {
@@ -36,20 +38,25 @@ export type TodayPlan = {
   /** ¿Hay algo creado? Para guiar al usuario la primera vez. */
   hasExercises: boolean;
   hasSessions: boolean;
+  /** Lo que se puede añadir solo para hoy (lo que aún no está en Hoy). */
+  addable: { sessions: { id: string; name: string }[]; exercises: { id: string; name: string }[] };
 };
 
 /**
  * Lo planificado para hoy (según el día de la semana) y lo ya hecho hoy. Primero las
- * clases del gimnasio, por hora (tienen hora fija); después el plan, en su orden.
+ * clases del gimnasio, por hora (tienen hora fija); después el plan, en su orden, y al final
+ * lo añadido solo para hoy.
  */
 export async function getTodayPlan(date: Date): Promise<TodayPlan> {
   const weekday = isoWeekday(date);
-  const [entries, sessions, exercises, logs, classes] = await Promise.all([
+  const dateKey = localDateKey(date);
+  const [entries, sessions, exercises, logs, classes, extras] = await Promise.all([
     db.planEntries.where("weekday").equals(weekday).toArray(),
     db.sessions.toArray(),
     db.exercises.toArray(),
     db.weightLogs.where("date").equals(localDateKey(date)).toArray(),
     db.gymClasses.where("weekday").equals(weekday).toArray(),
+    db.dayExtras.where("date").equals(dateKey).toArray(),
   ]);
   const sessionById = new Map(sessions.filter(isAlive).map((s) => [s.id, s]));
   const exerciseById = new Map(exercises.filter(isAlive).map((e) => [e.id, e]));
@@ -118,7 +125,56 @@ export async function getTodayPlan(date: Date): Promise<TodayPlan> {
       ];
     });
 
-  const items = [...classItems, ...planned];
+  // Solo para hoy: no se repite lo que ya está en el plan de hoy.
+  const plannedTargets = new Set(planned.map((item) => item.targetId));
+  const extraItems = extras
+    .filter(isAlive)
+    .sort((a, b) => a.position - b.position)
+    .flatMap((extra): TodayItem[] => {
+      if (extra.exerciseId) {
+        const exercise = exerciseById.get(extra.exerciseId);
+        if (!exercise || plannedTargets.has(exercise.id)) return [];
+        return [
+          {
+            entryId: extra.id,
+            kind: "exercise",
+            title: exercise.name,
+            targetId: exercise.id,
+            exercises: [exercise],
+            extra: true,
+          },
+        ];
+      }
+      const session = extra.sessionId ? sessionById.get(extra.sessionId) : undefined;
+      if (!session || plannedTargets.has(session.id)) return [];
+      return [
+        {
+          entryId: extra.id,
+          kind: "session",
+          title: session.name,
+          targetId: session.id,
+          photoId: session.photoId,
+          exercises: session.exerciseIds.flatMap((id) => exerciseById.get(id) ?? []),
+          extra: true,
+        },
+      ];
+    });
+
+  const items = [...classItems, ...planned, ...extraItems];
+  const inToday = new Set(items.map((item) => item.targetId));
+  const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, "es");
+  const addable = {
+    sessions: [...sessionById.values()]
+      .filter((s) => !inToday.has(s.id))
+      .map((s) => ({ id: s.id, name: s.name }))
+      .sort(byName),
+    exercises: [...exerciseById.values()]
+      .filter(
+        (e) => !inToday.has(e.id) && !items.some((i) => i.exercises.some((x) => x.id === e.id)),
+      )
+      .map((e) => ({ id: e.id, name: e.name }))
+      .sort(byName),
+  };
   // Historial de los ejercicios de hoy, del más reciente al más antiguo.
   const ids = [...new Set(items.flatMap((i) => i.exercises.map((e) => e.id)))];
   const history = (await db.weightLogs.where("exerciseId").anyOf(ids).toArray())
@@ -143,6 +199,7 @@ export async function getTodayPlan(date: Date): Promise<TodayPlan> {
     done: new Set(logs.filter(isAlive).map((l) => l.exerciseId)),
     hasExercises: exerciseById.size > 0,
     hasSessions: sessionById.size > 0,
+    addable,
   };
 }
 

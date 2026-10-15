@@ -58,6 +58,26 @@ function SessionForm({ session, catalog }: { session: Session | null; catalog: E
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const available = catalog.filter((e) => !ids.includes(e.id));
+  const initialIds = (session?.exerciseIds ?? []).filter((id) => byId.has(id));
+  const dirty =
+    name !== (session?.name ?? "") ||
+    image !== undefined ||
+    ids.length !== initialIds.length ||
+    ids.some((id, i) => id !== initialIds[i]);
+
+  /** Abre la edición del ejercicio y, al guardar, vuelve a esta sesión. */
+  async function editExercise(exerciseId: string) {
+    if (dirty) {
+      const ok = await confirm({
+        title: "Tienes cambios sin guardar",
+        message: "Si vas a editar el ejercicio ahora, perderás los cambios de esta sesión.",
+        confirmLabel: "Salir sin guardar",
+      });
+      if (!ok) return;
+    }
+    const here = session ? `/sesiones/${session.id}` : "/sesiones/nueva";
+    navigate(`/ejercicios/${exerciseId}/editar?volver=${encodeURIComponent(here)}`);
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -144,7 +164,17 @@ function SessionForm({ session, catalog }: { session: Session | null; catalog: E
                     <span className="w-6 shrink-0 text-center font-bold text-muted tabular-nums">
                       {index + 1}
                     </span>
-                    <span className="min-w-0 flex-1 truncate font-semibold">{exercise.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => void editExercise(exercise.id)}
+                      aria-label={`Editar ${exercise.name}`}
+                      className="flex min-h-12 min-w-0 flex-1 items-center gap-1 text-left font-semibold underline decoration-dotted underline-offset-4"
+                    >
+                      <span className="truncate">{exercise.name}</span>
+                      <span aria-hidden="true" className="text-muted">
+                        ✎
+                      </span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => setIds((list) => moveItem(list, index, -1))}

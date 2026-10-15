@@ -177,18 +177,18 @@ export type IllustrationKey = keyof typeof FIGURES;
 // El orden importa: lo más específico primero ("plancha lateral" antes que "plancha").
 const MATCHERS: [RegExp, IllustrationKey][] = [
   [/plancha lateral|side plank/, "side_plank"],
-  [/plancha|plank/, "plank"],
+  [/plancha|plank|abdominal|crunch|\bcore\b/, "plank"],
   [/sentadilla|squat/, "squat"],
   [/peso muerto|deadlift/, "deadlift"],
-  [/hip ?th?rust|puente de gluteo|glute bridge/, "hip_thrust"],
+  [/hip ?th?rust|puente|glute bridge/, "hip_thrust"],
   [/prensa|leg press/, "leg_press"],
   [/patada|kickback|donkey/, "donkey_kick"],
   // Clases del gimnasio.
-  [/spinning|ciclo|bici|cycling/, "spinning"],
+  [/spinning|ciclo|bici|cycling|eliptica/, "spinning"],
   [/body ?pump|pump/, "body_pump"],
-  [/\bgap\b|zancada|lunge/, "lunge"],
+  [/\bgap\b|zancada|lunge|step ?up/, "lunge"],
   [/pilates/, "pilates"],
-  [/yoga/, "yoga"],
+  [/yoga|estiramiento|movilidad/, "yoga"],
   [/zumba|baile|dance|bachata|salsa/, "dance"],
 ];
 
@@ -218,8 +218,9 @@ export function sessionIllustrationFor(
 ): IllustrationKey | null {
   const key = normalize(name);
   return (
-    illustrationFor(name) ??
+    // Primero las palabras típicas de sesiones ("Pierna + core" → pierna).
     SESSION_MATCHERS.find(([pattern]) => pattern.test(key))?.[1] ??
+    illustrationFor(name) ??
     exerciseNames.map(illustrationFor).find((k) => k !== null) ??
     null
   );

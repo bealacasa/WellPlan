@@ -268,7 +268,7 @@ describe("registro rápido desde Hoy", () => {
     const user = userEvent.setup();
     render(
       <RouterProvider
-        router={createMemoryRouter(router.routes, { initialEntries: [`/ejercicios/${id}`] })}
+        router={createMemoryRouter(router.routes, { initialEntries: [`/hoy/${id}`] })}
       />,
     );
     await user.click(await screen.findByRole("button", { name: "↑ Probar con 22,5 kg" }));
@@ -308,29 +308,48 @@ describe("desmarcar y molestias en Hoy", () => {
       kg: 20,
       sets: 3,
       reps: 12,
-      feeling: 4,
+      feeling: null,
       painArea: null,
-      note: null,
+      note: "Me molestó la rodilla",
     });
     render(
       <RouterProvider router={createMemoryRouter(router.routes, { initialEntries: ["/"] })} />,
     );
-    expect(await screen.findByText("Molestias la última vez")).toBeTruthy();
+    expect(await screen.findByText("Nota la última vez")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Registrar Prensa/ })).toBeNull();
   });
 
-  it("en la ficha se registra la sensación y la zona, y aparece en el historial", async () => {
+  it("en fuerza solo hay nota (sin sensación ni zona)", async () => {
     const id = await exercise("Prensa");
+    render(
+      <RouterProvider
+        router={createMemoryRouter(router.routes, { initialEntries: [`/hoy/${id}`] })}
+      />,
+    );
+    expect(await screen.findByLabelText("Nota (opcional)")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Sensación 5 de 10" })).toBeNull();
+  });
+
+  it("en una clase se registra la sensación y la zona, y aparece en el historial", async () => {
+    const { createExercise } = await import("@/db/repositories/exercises");
+    const id = await createExercise({
+      name: "Pilates",
+      type: "clase",
+      physioNotes: "",
+      sets: 1,
+      reps: null,
+      durationSec: 3600,
+      targetKg: null,
+    });
     const user = userEvent.setup();
     render(
       <RouterProvider
-        router={createMemoryRouter(router.routes, { initialEntries: [`/ejercicios/${id}`] })}
+        router={createMemoryRouter(router.routes, { initialEntries: [`/hoy/${id}`] })}
       />,
     );
-    await user.type(await screen.findByLabelText("Peso"), "20");
-    await user.click(screen.getByRole("button", { name: "Sensación 5 de 10" }));
+    await user.click(await screen.findByRole("button", { name: "Sensación 5 de 10" }));
     await user.click(screen.getByRole("button", { name: "Rodilla" }));
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await user.click(screen.getByRole("button", { name: "Marcar como hecha" }));
     expect(await screen.findByText("Sensación 5/10 · molestia en rodilla")).toBeTruthy();
     expect((await db.weightLogs.toArray())[0]).toMatchObject({ feeling: 5, painArea: "Rodilla" });
   });
@@ -359,5 +378,93 @@ describe("informe para el fisio", () => {
     await user.click(await screen.findByRole("link", { name: "Informe para el fisio" }));
     expect(await screen.findByText("Sensación 3/10 · molestia en lumbar")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Compartir informe" })).toBeTruthy();
+  });
+});
+
+describe("solo para hoy", () => {
+  it("se añade una sesión solo hoy, sin tocar el plan, y se puede quitar", async () => {
+    const { createSession } = await import("@/db/repositories/sessions");
+    const id = await exercise("Prensa");
+    await createSession({ name: "Glúteo", exerciseIds: [id] });
+    const user = userEvent.setup();
+    render(
+      <RouterProvider router={createMemoryRouter(router.routes, { initialEntries: ["/"] })} />,
+    );
+    const select = await screen.findByLabelText("Añadir solo para hoy");
+    const session = (await db.sessions.toArray())[0]!;
+    await user.selectOptions(select, `s:${session.id}`);
+    expect(await screen.findByRole("button", { name: /Glúteo/ })).toBeTruthy();
+    expect(await db.planEntries.count()).toBe(0);
+    expect((await db.dayExtras.toArray())[0]).toMatchObject({ sessionId: session.id });
+
+    await user.click(screen.getByRole("button", { name: /Glúteo/ }));
+    await user.click(screen.getByRole("button", { name: "Quitar de hoy" }));
+    await vi.waitFor(async () =>
+      expect((await db.dayExtras.toArray())[0]?.deletedAt).not.toBeNull(),
+    );
+  });
+});
+
+describe("corregir el progreso", () => {
+  it("tocar un día muestra lo hecho; en una clase se añaden o quitan días", async () => {
+    const { createExercise } = await import("@/db/repositories/exercises");
+    const { addLog } = await import("@/db/repositories/weightLogs");
+    const { localDateKey } = await import("@/lib/dates");
+    const today = localDateKey(new Date());
+    const pilates = await createExercise({
+      name: "Pilates",
+      type: "clase",
+      physioNotes: "",
+      sets: 1,
+      reps: null,
+      durationSec: 3600,
+      targetKg: null,
+    });
+    await addLog(pilates, { date: today, kg: null, sets: 1, reps: null, note: null });
+    const user = userEvent.setup();
+    const memory = createMemoryRouter(router.routes, { initialEntries: ["/progreso"] });
+    render(<RouterProvider router={memory} />);
+
+    await user.click(await screen.findByRole("link", { name: /Pilates/ }));
+    const day = await screen.findByLabelText("Añadir un día");
+    expect(screen.getByText("1 día")).toBeTruthy();
+    await user.clear(day);
+    await user.type(day, "2026-01-05");
+    await user.click(screen.getByRole("button", { name: "Apuntar que fui" }));
+    expect(await screen.findByText("2 días")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Apuntar que fui" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Ese día ya está apuntado.");
+
+    await memory.navigate(`/progreso/dia/${today}`);
+    expect(await screen.findByText("Clases y ejercicios")).toBeTruthy();
+    expect(screen.getByText("Pilates")).toBeTruthy();
+  });
+
+  it("desde una sesión se edita un ejercicio y se vuelve a la sesión", async () => {
+    const { createSession } = await import("@/db/repositories/sessions");
+    const id = await exercise("Prensa");
+    const sessionId = await createSession({ name: "Glúteo", exerciseIds: [id] });
+    const user = userEvent.setup();
+    const memory = createMemoryRouter(router.routes, {
+      initialEntries: [`/sesiones/${sessionId}`],
+    });
+    render(<RouterProvider router={memory} />);
+    await user.click(await screen.findByRole("button", { name: "Editar Prensa" }));
+    await vi.waitFor(
+      () => expect(memory.state.location.pathname).toBe(`/ejercicios/${id}/editar`),
+      { timeout: 5000 },
+    );
+    // Mientras carga, sigue visible la sesión (que también tiene «Nombre»): esperar el título.
+    await screen.findByRole("heading", { name: "Editar ejercicio" });
+    await user.clear(screen.getByLabelText("Nombre"));
+    await user.type(screen.getByLabelText("Nombre"), "Prensa 45°");
+    await user.click(screen.getByRole("button", { name: "Guardar ejercicio" }));
+    await vi.waitFor(() => expect(memory.state.location.pathname).toBe(`/sesiones/${sessionId}`), {
+      timeout: 5000,
+    });
+    expect((await db.exercises.get(id))?.name).toBe("Prensa 45°");
+    expect(
+      await screen.findByRole("button", { name: /Editar Prensa 45/ }, { timeout: 8000 }),
+    ).toBeTruthy();
   });
 });

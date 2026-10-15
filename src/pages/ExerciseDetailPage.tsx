@@ -6,7 +6,7 @@ import { FeelingField } from "@/components/FeelingField";
 import { KgField } from "@/components/KgField";
 import { NumberStepper } from "@/components/NumberStepper";
 import { WeightChart } from "@/components/WeightChart";
-import { Card, PageHeader, buttonPrimary, buttonSecondary, inputClass } from "@/components/ui";
+import { Card, PageHeader, buttonPrimary, inputClass } from "@/components/ui";
 import { useExercise } from "@/db/repositories/exercises";
 import { addLog, deleteLog, useLogs } from "@/db/repositories/weightLogs";
 import type { Exercise, WeightLog } from "@/db/types";
@@ -32,7 +32,17 @@ import {
   stepKg,
 } from "@/lib/numbers";
 
+/** Ficha desde la pestaña Ejercicios: indicaciones, historial y «Editar» arriba. */
 export function ExerciseDetailPage() {
+  return <ExerciseView mode="info" />;
+}
+
+/** Registrar desde Hoy (/hoy/:id): el formulario del día con sensación y molestias. */
+export function ExerciseLogPage() {
+  return <ExerciseView mode="log" />;
+}
+
+function ExerciseView({ mode }: { mode: "info" | "log" }) {
   const { id } = useParams();
   const exercise = useExercise(id);
   const logs = useLogs(id);
@@ -75,12 +85,22 @@ export function ExerciseDetailPage() {
 
   return (
     <>
-      <Link
-        to="/ejercicios"
-        className="mb-2 inline-flex min-h-11 items-center font-medium text-muted"
-      >
-        ← Ejercicios
-      </Link>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <Link
+          to={mode === "log" ? "/" : "/ejercicios"}
+          className="inline-flex min-h-11 items-center font-medium text-muted"
+        >
+          {mode === "log" ? "← Hoy" : "← Ejercicios"}
+        </Link>
+        {mode === "info" && (
+          <Link
+            to={`/ejercicios/${exercise.id}/editar`}
+            className="inline-flex min-h-11 items-center rounded-xl bg-accent-soft px-4 font-bold text-accent"
+          >
+            Editar
+          </Link>
+        )}
+      </div>
       <ExercisePhoto
         photoId={exercise.photoId}
         type={exercise.type}
@@ -104,14 +124,16 @@ export function ExerciseDetailPage() {
       )}
 
       {/* key: al registrar, el formulario se reinicia con los nuevos "últimos" valores. */}
-      <QuickLog
-        key={logs[0]?.id ?? "vacio"}
-        exercise={exercise}
-        last={logs[0] ?? null}
-        suggestion={suggestNextKg(exercise, logs)}
-        worsening={worseningFeeling(logs)}
-        onSaved={setSaved}
-      />
+      {mode === "log" && (
+        <QuickLog
+          key={logs[0]?.id ?? "vacio"}
+          exercise={exercise}
+          last={logs[0] ?? null}
+          suggestion={suggestNextKg(exercise, logs)}
+          worsening={worseningFeeling(logs)}
+          onSaved={setSaved}
+        />
+      )}
       {saved && (
         <p
           role="status"
@@ -160,9 +182,6 @@ export function ExerciseDetailPage() {
         </Card>
       )}
 
-      <Link to={`/ejercicios/${exercise.id}/editar`} className={`${buttonSecondary} mt-4 w-full`}>
-        Editar ejercicio
-      </Link>
       {dialog}
     </>
   );
@@ -323,12 +342,15 @@ function StrengthForm({ exercise, last, suggestion, onSaved }: QuickLogProps) {
           />
         )}
       </div>
-      <FeelingField
-        feeling={feeling}
-        onFeeling={setFeeling}
-        painArea={painArea}
-        onPainArea={setPainArea}
-      />
+      {/* Sensación y zona solo en clases; en fuerza y estiramientos basta la nota. */}
+      {isClass(exercise.type) && (
+        <FeelingField
+          feeling={feeling}
+          onFeeling={setFeeling}
+          painArea={painArea}
+          onPainArea={setPainArea}
+        />
+      )}
       <NoteField value={note} onChange={setNote} />
       {error && (
         <p role="alert" className="font-medium text-danger">

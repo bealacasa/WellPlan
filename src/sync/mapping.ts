@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   EXERCISE_TYPES,
   type Exercise,
+  type DayExtra,
   type GymClass,
   type Photo,
   type PlanEntry,
@@ -286,6 +287,34 @@ export const gymClassMapping = {
       instructor: row.instructor,
       attending: row.attending,
       exerciseId: row.exercise_id,
+    };
+  },
+};
+
+export const dayExtraRowSchema = z.object({
+  ...syncColumns,
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  session_id: z.uuid().nullable(),
+  exercise_id: z.uuid().nullable(),
+  position: z.number().int(),
+});
+
+export const dayExtraMapping = {
+  toRemote: (e: DayExtra) => ({
+    ...syncToRemote(e),
+    date: e.date,
+    session_id: e.sessionId,
+    exercise_id: e.exerciseId,
+    position: e.position,
+  }),
+  fromRemote: (raw: unknown): DayExtra => {
+    const row = dayExtraRowSchema.parse(raw);
+    return {
+      ...syncFromRemote(row),
+      date: row.date,
+      sessionId: row.session_id,
+      exerciseId: row.exercise_id,
+      position: row.position,
     };
   },
 };

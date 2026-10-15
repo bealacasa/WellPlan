@@ -5,6 +5,7 @@ import type { WellPlanDB } from "@/db/database";
 import type { Photo, Session, SyncFields } from "@/db/types";
 import {
   exerciseMapping,
+  dayExtraMapping,
   gymClassMapping,
   photoMapping,
   photoPath,
@@ -37,7 +38,8 @@ export class AccountMismatchError extends Error {
   }
 }
 
-type LocalTable = "photos" | "exercises" | "weightLogs" | "sessions" | "planEntries" | "gymClasses";
+type LocalTable =
+  "photos" | "exercises" | "weightLogs" | "sessions" | "planEntries" | "gymClasses" | "dayExtras";
 type TableSpec = {
   local: LocalTable;
   remote: string;
@@ -61,6 +63,12 @@ const TABLES: TableSpec[] = [
     local: "gymClasses",
     remote: "gym_classes",
     toRemote: asSpec(gymClassMapping.toRemote),
+    optional: true,
+  },
+  {
+    local: "dayExtras",
+    remote: "day_extras",
+    toRemote: asSpec(dayExtraMapping.toRemote),
     optional: true,
   },
 ];
@@ -178,6 +186,8 @@ async function toLocal(spec: TableSpec, raw: unknown, ctx: PullContext): Promise
       return planMapping.fromRemote(raw);
     case "gymClasses":
       return gymClassMapping.fromRemote(raw);
+    case "dayExtras":
+      return dayExtraMapping.fromRemote(raw);
     case "sessions": {
       const id = (raw as { id: string }).id;
       return sessionMapping.fromRemote(raw, ctx.sessionExercises.get(id) ?? []);

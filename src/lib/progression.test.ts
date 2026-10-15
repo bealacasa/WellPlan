@@ -76,14 +76,20 @@ describe("cuándo subir de peso", () => {
 });
 
 describe("sensación y molestias", () => {
-  it("el ✓ rápido guarda que fue bien, salvo si la última vez hubo molestias", () => {
-    expect(quickLogInput(exercise(), log("2026-10-01", 20))).toMatchObject({
-      feeling: 10,
-      painArea: null,
-    });
-    expect(quickLogInput(exercise(), { ...log("2026-10-01", 20), feeling: 5 })).toBeNull();
-    expect(quickLogInput(exercise(), { ...log("2026-10-01", 20), feeling: 6 })).not.toBeNull();
-    expect(quickLogInput(exercise(), { ...log("2026-10-01", 20), painArea: "Rodilla" })).toBeNull();
+  it("clases: el ✓ rápido guarda que fue bien, salvo si la última vez hubo molestias", () => {
+    const yoga = exercise({ type: "clase", durationSec: 3600 });
+    expect(quickLogInput(yoga, log("2026-10-01", null))).toMatchObject({ feeling: 10 });
+    expect(quickLogInput(yoga, { ...log("2026-10-01", null), feeling: 5 })).toBeNull();
+    expect(quickLogInput(yoga, { ...log("2026-10-01", null), feeling: 6 })).not.toBeNull();
+    expect(quickLogInput(yoga, { ...log("2026-10-01", null), painArea: "Rodilla" })).toBeNull();
+  });
+
+  it("fuerza: sin sensación; si la última vez hubo nota, no se repite de un toque", () => {
+    expect(quickLogInput(exercise(), log("2026-10-01", 20))).toMatchObject({ feeling: null });
+    expect(
+      quickLogInput(exercise(), { ...log("2026-10-01", 20), note: "Molestia en la rodilla" }),
+    ).toBeNull();
+    expect(quickLogInput(exercise(), { ...log("2026-10-01", 20), note: "  " })).not.toBeNull();
   });
 
   it("no sugiere subir peso si hubo molestias", () => {

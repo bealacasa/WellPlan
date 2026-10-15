@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { ExercisePhoto } from "@/components/ExercisePhoto";
 import { KgField } from "@/components/KgField";
 import { NO_CARDIO_TARGET, useCardioTarget } from "@/components/CardioTargetFields";
 import { NumberStepper } from "@/components/NumberStepper";
@@ -18,6 +19,7 @@ import { EXERCISE_TYPES, type Exercise, type ExerciseType } from "@/db/types";
 import type { ProcessedImage } from "@/lib/image";
 import { EXERCISE_TYPE_LABEL, isCardio, isClass, usesDuration, usesKg } from "@/lib/labels";
 import { formatKg, parseKg } from "@/lib/numbers";
+import { safeReturnPath } from "@/lib/navigation";
 import { exerciseInputSchema } from "@/lib/validation";
 
 /** Alta (/ejercicios/nuevo) y edición (/ejercicios/:id/editar). */
@@ -40,6 +42,9 @@ export function ExerciseFormPage() {
 
 function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
   const navigate = useNavigate();
+  // Si se abrió desde una sesión (?volver=/sesiones/…), al guardar se vuelve allí.
+  const returnTo = safeReturnPath(useSearchParams()[0].get("volver"));
+  const back = returnTo ?? (exercise ? `/ejercicios/${exercise.id}` : "/ejercicios");
   const [dialog, confirm] = useConfirm();
   const currentPhoto = usePhotoUrl(exercise?.photoId ?? null, "full");
 
@@ -110,10 +115,10 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
     try {
       if (exercise) {
         await updateExercise(exercise.id, parsed.data, image);
-        navigate(`/ejercicios/${exercise.id}`, { replace: true });
+        navigate(back, { replace: true });
       } else {
         const newId = await createExercise(parsed.data, image === "remove" ? undefined : image);
-        navigate(`/ejercicios/${newId}`, { replace: true });
+        navigate(returnTo ?? `/ejercicios/${newId}`, { replace: true });
       }
     } catch {
       setError("No se pudo guardar. Inténtalo de nuevo.");
@@ -135,6 +140,9 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
 
   return (
     <>
+      <Link to={back} className="mb-2 inline-flex min-h-11 items-center font-medium text-muted">
+        ← Volver sin guardar
+      </Link>
       <PageHeader title={exercise ? "Editar ejercicio" : "Nuevo ejercicio"} />
       <form onSubmit={save} className="space-y-5" noValidate>
         <div>
@@ -175,6 +183,23 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
           </div>
         </fieldset>
 
+        {/* Vista previa: el dibujo cambia con el nombre y el tipo (si no hay foto). */}
+        {!currentPhoto && (
+          <div className="flex items-center gap-3 rounded-2xl bg-surface-2 p-3" aria-live="polite">
+            <ExercisePhoto
+              photoId={null}
+              type={type}
+              name={name}
+              variant="thumb"
+              alt=""
+              className="size-16 shrink-0 rounded-xl"
+            />
+            <p className="text-sm text-muted">
+              Así se verá en las listas: un dibujo según el nombre o, si no lo reconoce, el icono
+              del tipo. Si prefieres, haz una foto de la máquina.
+            </p>
+          </div>
+        )}
         <PhotoPicker currentUrl={currentPhoto} onChange={setImage} />
 
         {type === "peso_corporal" && (

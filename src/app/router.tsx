@@ -17,6 +17,14 @@ export const router = createBrowserRouter(
           lazy: async () => ({ Component: (await import("@/pages/ProgressPage")).ProgressPage }),
         },
         {
+          path: "progreso/dia/:date",
+          lazy: async () => ({ Component: (await import("@/pages/DayDetailPage")).DayDetailPage }),
+        },
+        {
+          path: "progreso/clase/:id",
+          lazy: async () => ({ Component: (await import("@/pages/ClassDaysPage")).ClassDaysPage }),
+        },
+        {
           path: "progreso/informe",
           lazy: async () => ({ Component: (await import("@/pages/ReportPage")).ReportPage }),
         },
@@ -44,6 +52,12 @@ export const router = createBrowserRouter(
           path: "ejercicios/:id",
           lazy: async () => ({
             Component: (await import("@/pages/ExerciseDetailPage")).ExerciseDetailPage,
+          }),
+        },
+        {
+          path: "hoy/:id",
+          lazy: async () => ({
+            Component: (await import("@/pages/ExerciseDetailPage")).ExerciseLogPage,
           }),
         },
         {

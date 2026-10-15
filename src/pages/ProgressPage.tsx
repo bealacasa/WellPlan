@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Card, EmptyState, PageHeader, buttonSecondary } from "@/components/ui";
 import {
   streakLabel,
@@ -62,24 +62,29 @@ function WeekCard({ progress: p }: { progress: Progress }) {
 function DayDot({ day }: { day: DayStatus }) {
   const status = day.trained ? "entrenado" : day.planned ? "planificado, sin hacer" : "descanso";
   return (
-    <li className="flex flex-col items-center gap-1">
-      <span className="text-xs font-bold text-muted" aria-hidden="true">
-        {weekdayShort(day.weekday)}
-      </span>
-      <span
-        className={`grid size-10 place-items-center rounded-full font-bold ${
-          day.trained
-            ? "bg-linear-to-br from-accent to-accent-2 text-accent-contrast"
-            : day.planned
-              ? "border-2 border-dashed border-accent"
-              : "bg-surface-2"
-        }`}
+    <li>
+      <Link
+        to={`/progreso/dia/${day.date}`}
+        className="flex flex-col items-center gap-1 rounded-xl py-1 active:scale-95"
       >
-        <span aria-hidden="true">{day.trained ? "✓" : ""}</span>
-        <span className="sr-only">
-          {weekdayName(day.weekday)}: {status}
+        <span className="text-xs font-bold text-muted" aria-hidden="true">
+          {weekdayShort(day.weekday)}
         </span>
-      </span>
+        <span
+          className={`grid size-10 place-items-center rounded-full font-bold ${
+            day.trained
+              ? "bg-linear-to-br from-accent to-accent-2 text-accent-contrast"
+              : day.planned
+                ? "border-2 border-dashed border-accent"
+                : "bg-surface-2"
+          }`}
+        >
+          <span aria-hidden="true">{day.trained ? "✓" : ""}</span>
+          <span className="sr-only">
+            {weekdayName(day.weekday)}: {status}. Ver lo que hiciste
+          </span>
+        </span>
+      </Link>
     </li>
   );
 }
@@ -140,7 +145,7 @@ function WeeksChart({ progress: p }: { progress: Progress }) {
                 textAnchor="middle"
                 className="fill-muted text-[10px]"
               >
-                {shortDate(w.start)}
+                {i === p.lastWeeks.length - 1 ? "Esta sem." : shortDate(w.start)}
               </text>
             </g>
           );
@@ -153,9 +158,12 @@ function WeeksChart({ progress: p }: { progress: Progress }) {
         </p>
       )}
       <ul className="sr-only">
-        {p.lastWeeks.map((w) => (
+        {p.lastWeeks.map((w, i) => (
           <li key={w.start}>
-            Semana del {shortDate(w.start)}: {w.trained} {w.trained === 1 ? "día" : "días"}
+            {i === p.lastWeeks.length - 1
+              ? "Esta semana (hasta hoy)"
+              : `Semana del ${shortDate(w.start)}`}
+            : {w.trained} {w.trained === 1 ? "día" : "días"}
           </li>
         ))}
       </ul>
@@ -177,17 +185,51 @@ function ClassesCard({ progress: p }: { progress: Progress }) {
           </p>
           <ul className="mt-3 space-y-2">
             {p.classesThisMonth.map((c) => (
-              <li
-                key={c.name}
-                className="flex items-center justify-between rounded-2xl bg-surface-2 px-4 py-3"
-              >
-                <span className="font-semibold">{c.name}</span>
-                <span className="font-bold tabular-nums">× {c.count}</span>
+              <li key={c.id}>
+                <Link
+                  to={`/progreso/clase/${c.id}`}
+                  className="flex min-h-12 items-center justify-between gap-3 rounded-2xl bg-surface-2 px-4 py-3 active:scale-[0.99]"
+                >
+                  <span className="font-semibold">{c.name}</span>
+                  <span className="font-bold tabular-nums">
+                    × {c.count} <span aria-hidden="true">›</span>
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>
+          <p className="mt-2 text-sm text-muted">Toca una clase para corregir los días.</p>
         </>
       )}
+      {p.allClasses.some((c) => !p.classesThisMonth.some((m) => m.id === c.id)) && (
+        <ClassPicker progress={p} />
+      )}
     </Card>
+  );
+}
+
+/** Apuntar una clase que no aparece este mes (p. ej. se te olvidó marcarla). */
+function ClassPicker({ progress: p }: { progress: Progress }) {
+  const navigate = useNavigate();
+  const others = p.allClasses.filter((c) => !p.classesThisMonth.some((m) => m.id === c.id));
+  return (
+    <div className="mt-3">
+      <label htmlFor="other-class" className="sr-only">
+        Apuntar otra clase
+      </label>
+      <select
+        id="other-class"
+        value=""
+        onChange={(e) => e.target.value && navigate(`/progreso/clase/${e.target.value}`)}
+        className="min-h-12 w-full rounded-xl border border-dashed border-border bg-transparent px-3 font-medium"
+      >
+        <option value="">+ Apuntar otra clase…</option>
+        {others.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }

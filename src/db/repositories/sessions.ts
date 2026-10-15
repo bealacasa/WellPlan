@@ -5,6 +5,7 @@ import { notifyLocalChange } from "../changes";
 import { db } from "../database";
 import { createRecord, isAlive, tombstone, touch } from "../records";
 import type { Photo, PlanEntry, Session } from "../types";
+import { removeExtrasOf } from "./dayExtras";
 import { newPhoto } from "./photos";
 
 const byName = (a: Session, b: Session) => a.name.localeCompare(b.name, "es");
@@ -67,10 +68,11 @@ export async function updateSession(
 
 /** Borra la sesión (con su foto) y la quita de todos los días del plan. */
 export async function deleteSession(id: string): Promise<void> {
-  await db.transaction("rw", db.sessions, db.planEntries, db.photos, async () => {
+  await db.transaction("rw", [db.sessions, db.planEntries, db.photos, db.dayExtras], async () => {
     const current = await db.sessions.get(id);
     if (current?.photoId) await db.photos.update(current.photoId, tombstone<Photo>());
     await db.sessions.update(id, tombstone<Session>());
+    await removeExtrasOf({ sessionId: id });
     const entries = await db.planEntries.where("sessionId").equals(id).toArray();
     for (const entry of entries.filter(isAlive)) {
       await db.planEntries.update(entry.id, tombstone<PlanEntry>());
