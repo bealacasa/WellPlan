@@ -1,6 +1,12 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { addDays, localDateKey, startOfWeek } from "@/lib/dates";
 import { buildReport, type Report } from "@/lib/report";
+import {
+  personalRecords,
+  strengthGains,
+  type PersonalRecord,
+  type StrengthGain,
+} from "@/lib/strength";
 import { db } from "../database";
 import { isAlive } from "../records";
 import type { Exercise, ExerciseType, WeightLog } from "../types";
@@ -29,6 +35,16 @@ export type Progress = {
   exercisesThisMonth: { id: string; name: string; type: ExerciseType; count: number }[];
   /** Todas las clases (para apuntar una que no aparece este mes). */
   allClasses: { id: string; name: string }[];
+  /** Días con algún registro ("YYYY-MM-DD"), para el calendario. */
+  trainedDates: Set<string>;
+  /** Días de la semana (1–7) con algo planificado. */
+  plannedWeekdays: Set<number>;
+  /** Primer día con un registro (para no ir más atrás en el calendario). */
+  firstDate: string | null;
+  /** Peso de hace unos meses frente al de ahora, por ejercicio con kilos. */
+  gains: StrengthGain[];
+  /** Mejor marca de cada ejercicio con kilos, las más recientes primero. */
+  records: PersonalRecord[];
 };
 
 const WEEKS = 8;
@@ -111,6 +127,11 @@ export async function getProgress(today: Date): Promise<Progress> {
     classesThisMonth,
     exercisesThisMonth,
     allClasses,
+    trainedDates,
+    plannedWeekdays,
+    firstDate: [...trainedDates].sort()[0] ?? null,
+    gains: strengthGains(exercises, aliveLogs, today),
+    records: personalRecords(exercises, aliveLogs),
   };
 }
 

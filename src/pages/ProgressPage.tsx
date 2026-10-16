@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { TYPE_STYLE } from "@/components/typeStyle";
 import { Card, EmptyState, PageHeader, buttonSecondary } from "@/components/ui";
@@ -8,10 +9,12 @@ import {
   type DayStatus,
   type Progress,
 } from "@/db/repositories/progress";
-import { weekdayName, weekdayShort } from "@/lib/dates";
+import { addDays, isoWeekday, localDateKey, weekdayName, weekdayShort } from "@/lib/dates";
 import { shortDate } from "@/lib/labels";
+import { formatKg } from "@/lib/numbers";
+import { GAIN_MONTHS } from "@/lib/strength";
 
-/** Progreso: esta semana, racha, últimas 8 semanas y clases del mes. */
+/** Progreso: esta semana, racha, calendario, últimas 8 semanas, fuerza y lo hecho este mes. */
 export function ProgressPage() {
   const progress = useProgress(new Date());
   if (!progress) return null;
@@ -33,7 +36,10 @@ export function ProgressPage() {
       ) : (
         <div className="space-y-4">
           <WeekCard progress={progress} />
+          <MonthCalendar progress={progress} />
           <WeeksChart progress={progress} />
+          <GainsCard progress={progress} />
+          <RecordsCard progress={progress} />
           <ClassesCard progress={progress} />
           <ExercisesCard progress={progress} />
         </div>
@@ -88,6 +94,247 @@ function DayDot({ day }: { day: DayStatus }) {
         </span>
       </Link>
     </li>
+  );
+}
+
+const monthFormat = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" });
+
+/** Calendario de un mes: días entrenados, planificados sin hacer y hoy. Se puede ir hacia atrás. */
+function MonthCalendar({ progress: p }: { progress: Progress }) {
+  const [offset, setOffset] = useState(0);
+  const now = new Date();
+  const todayKey = localDateKey(now);
+  const first = new Date(now.getFullYear(), now.getMonth() + offset, 1, 12);
+  const monthKey = localDateKey(first).slice(0, 7);
+  const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  const days = Array.from({ length: daysInMonth }, (_, i) => addDays(first, i));
+  const trained = days.filter((d) => p.trainedDates.has(localDateKey(d))).length;
+  const canGoBack = p.firstDate !== null && p.firstDate.slice(0, 7) < monthKey;
+  const label = monthFormat.format(first).replace(" de ", " ");
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-bold capitalize">{label}</h2>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={() => setOffset(offset - 1)}
+            disabled={!canGoBack}
+            aria-label="Mes anterior"
+            className="grid size-12 place-items-center rounded-xl bg-surface-2 text-xl font-bold disabled:opacity-30"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            onClick={() => setOffset(offset + 1)}
+            disabled={offset >= 0}
+            aria-label="Mes siguiente"
+            className="grid size-12 place-items-center rounded-xl bg-surface-2 text-xl font-bold disabled:opacity-30"
+          >
+            ›
+          </button>
+        </div>
+      </div>
+      <p className="text-3xl font-extrabold tracking-tight tabular-nums">
+        {trained} {trained === 1 ? "día" : "días"}
+      </p>
+      <div className="mt-3 grid grid-cols-7 gap-1 text-center" aria-hidden="true">
+        {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+          <span key={d} className="text-xs font-bold text-muted">
+            {weekdayShort(d)}
+          </span>
+        ))}
+      </div>
+      <ol className="mt-1 grid grid-cols-7 gap-1" aria-label={`Días de ${label}`}>
+        {days.map((date, i) => {
+          const key = localDateKey(date);
+          const isTrained = p.trainedDates.has(key);
+          const isFuture = key > todayKey;
+          const planned = p.plannedWeekdays.has(isoWeekday(date));
+          const status = isTrained
+            ? "entrenado"
+            : planned
+              ? isFuture
+                ? "planificado"
+                : "planificado, sin hacer"
+              : "descanso";
+          return (
+            <li key={key} className={i === 0 ? CALENDAR_START[isoWeekday(date) - 1] : undefined}>
+              <Link
+                to={`/progreso/dia/${key}`}
+                className={`grid aspect-square min-h-10 place-items-center rounded-full text-sm font-bold tabular-nums active:scale-95 ${
+                  isTrained
+                    ? "bg-linear-to-br from-accent to-accent-2 text-accent-contrast"
+                    : planned
+                      ? "border-2 border-dashed border-accent"
+                      : isFuture
+                        ? "text-muted"
+                        : "bg-surface-2"
+                } ${key === todayKey ? "ring-2 ring-text ring-offset-2 ring-offset-surface" : ""}`}
+              >
+                <span aria-hidden="true">{date.getDate()}</span>
+                <span className="sr-only">
+                  {date.getDate()} de {label}
+                  {key === todayKey ? " (hoy)" : ""}: {status}. Ver lo que hiciste
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="mt-3 text-sm text-muted">
+        Relleno: entrenado. Discontinuo: tocaba según tu plan. Toca un día para ver qué hiciste.
+      </p>
+    </Card>
+  );
+}
+
+/** Columna del primer día del mes (lunes = 1). Clases completas para que Tailwind las genere. */
+const CALENDAR_START = [
+  "col-start-1",
+  "col-start-2",
+  "col-start-3",
+  "col-start-4",
+  "col-start-5",
+  "col-start-6",
+  "col-start-7",
+];
+
+const PREVIEW = 5;
+
+/** "Ver todos (8)" / "Ver menos", si la lista es larga. */
+function ShowAll({
+  total,
+  open,
+  onToggle,
+}: {
+  total: number;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  if (total <= PREVIEW) return null;
+  return (
+    <button type="button" onClick={onToggle} className={`${buttonSecondary} mt-3 w-full`}>
+      {open ? "Ver menos" : `Ver todos (${total})`}
+    </button>
+  );
+}
+
+const signedPercent = (percent: number) =>
+  `${percent > 0 ? "+" : percent < 0 ? "−" : ""}${Math.abs(percent)} %`;
+
+/** Lo que has subido: peso de hace unos meses (o del principio) frente al de ahora. */
+function GainsCard({ progress: p }: { progress: Progress }) {
+  const [open, setOpen] = useState(false);
+  const up = p.gains.filter((g) => g.toKg > g.fromKg).length;
+  return (
+    <Card>
+      <h2 className="text-lg font-bold">Lo que has subido</h2>
+      <p className="text-sm text-muted">
+        Peso de hace {GAIN_MONTHS} meses (o del primer día) frente al de ahora.
+      </p>
+      {p.gains.length === 0 ? (
+        <p className="mt-2 text-muted">
+          Registra los kilos de tus ejercicios en dos días distintos para ver cuánto subes.
+        </p>
+      ) : (
+        <>
+          <p className="mt-1 text-3xl font-extrabold tracking-tight tabular-nums">
+            {up} de {p.gains.length} {p.gains.length === 1 ? "ejercicio" : "ejercicios"}
+          </p>
+          <ul className="mt-3 space-y-2">
+            {(open ? p.gains : p.gains.slice(0, PREVIEW)).map((g) => (
+              <li key={g.id}>
+                <Link
+                  to={`/ejercicios/${g.id}`}
+                  className="flex min-h-14 items-center gap-3 rounded-2xl bg-surface-2 px-4 py-2 active:scale-[0.99]"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-semibold">{g.name}</span>
+                    <span className="block text-sm text-muted tabular-nums">
+                      {formatKg(g.fromKg)} →{" "}
+                      <strong className="text-text">{formatKg(g.toKg)} kg</strong> · desde el{" "}
+                      {shortDate(g.fromDate)}
+                    </span>
+                  </span>
+                  {g.percent !== null && (
+                    <span
+                      className={`shrink-0 rounded-full px-3 py-1 font-bold tabular-nums ${
+                        g.percent > 0 ? "bg-accent-soft text-accent" : "bg-surface text-muted"
+                      }`}
+                    >
+                      {signedPercent(g.percent)}
+                    </span>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <ShowAll total={p.gains.length} open={open} onToggle={() => setOpen(!open)} />
+        </>
+      )}
+    </Card>
+  );
+}
+
+/** Récords: el mejor peso de cada ejercicio; los de este mes, con medalla de "Nuevo". */
+function RecordsCard({ progress: p }: { progress: Progress }) {
+  const [open, setOpen] = useState(false);
+  const month = localDateKey(new Date()).slice(0, 7);
+  const newThisMonth = p.records.filter((r) => r.date.startsWith(month)).length;
+  return (
+    <Card>
+      <h2 className="text-lg font-bold">Récords</h2>
+      {p.records.length === 0 ? (
+        <p className="mt-1 text-muted">
+          Cuando levantes más peso que nunca en un ejercicio, aparecerá aquí con su medalla.
+        </p>
+      ) : (
+        <>
+          <p className="mt-1 text-3xl font-extrabold tracking-tight tabular-nums">
+            {newThisMonth > 0
+              ? `${newThisMonth} ${newThisMonth === 1 ? "nuevo" : "nuevos"} este mes`
+              : `${p.records.length} ${p.records.length === 1 ? "récord" : "récords"}`}
+          </p>
+          <ul className="mt-3 space-y-2">
+            {(open ? p.records : p.records.slice(0, PREVIEW)).map((r) => {
+              const isNew = r.date.startsWith(month);
+              return (
+                <li key={r.id}>
+                  <Link
+                    to={`/ejercicios/${r.id}`}
+                    className="flex min-h-14 items-center gap-3 rounded-2xl bg-surface-2 px-4 py-2 active:scale-[0.99]"
+                  >
+                    <span aria-hidden="true" className="text-2xl">
+                      🏅
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold">
+                        {r.name}
+                        {isNew && (
+                          <span className="ml-2 rounded-full bg-accent px-2 py-0.5 text-xs font-bold text-accent-contrast">
+                            Nuevo
+                          </span>
+                        )}
+                      </span>
+                      <span className="block text-sm text-muted">
+                        {shortDate(r.date)} · antes {formatKg(r.previousKg ?? 0)} kg
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-lg font-extrabold tabular-nums">
+                      {formatKg(r.kg)} kg
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <ShowAll total={p.records.length} open={open} onToggle={() => setOpen(!open)} />
+        </>
+      )}
+    </Card>
   );
 }
 

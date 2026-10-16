@@ -225,8 +225,11 @@ describe("pantalla de progreso", () => {
     );
     await user.click(await screen.findByRole("link", { name: /Tu progreso/ }));
     expect(await screen.findByRole("heading", { name: "Progreso", level: 1 })).toBeTruthy();
-    expect(screen.getByText("1 día")).toBeTruthy();
+    const week = screen.getByRole("heading", { name: "Esta semana" }).closest("section");
+    expect(within(week as HTMLElement).getByText("1 día")).toBeTruthy();
     expect(screen.getByText(/Racha: 1 semana/)).toBeTruthy();
+    // Calendario del mes: hoy aparece como entrenado.
+    expect(screen.getByRole("link", { name: /\(hoy\): entrenado/ })).toBeTruthy();
   });
 });
 

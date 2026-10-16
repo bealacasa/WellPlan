@@ -97,6 +97,19 @@ describe("ejercicios este mes", () => {
   });
 });
 
+describe("calendario y fuerza", () => {
+  it("expone los días entrenados, el primer día, subidas y récords", async () => {
+    const prensa = await strength();
+    await addLog(prensa, { date: "2026-09-02", kg: 20, sets: 3, reps: 12, note: null });
+    await addLog(prensa, { date: "2026-10-07", kg: 25, sets: 3, reps: 12, note: null });
+    const p = await getProgress(WEDNESDAY);
+    expect([...p.trainedDates].sort()).toEqual(["2026-09-02", "2026-10-07"]);
+    expect(p.firstDate).toBe("2026-09-02");
+    expect(p.gains[0]).toMatchObject({ fromKg: 20, toKg: 25, percent: 25 });
+    expect(p.records[0]).toMatchObject({ kg: 25, date: "2026-10-07", previousKg: 20 });
+  });
+});
+
 describe("la semana actual en el gráfico", () => {
   it("la última barra cuenta hasta hoy", async () => {
     const prensa = await strength();
