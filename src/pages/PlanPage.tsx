@@ -49,7 +49,7 @@ export function PlanPage() {
     <>
       <PageHeader
         title="Plan semanal"
-        subtitle="Qué toca cada día: sesiones, ejercicios sueltos y clases."
+        subtitle="Qué toca cada día. Cuando un día pasa, se vacía (las clases con «Voy» se quedan)."
       />
 
       <ul className="space-y-2" aria-label="Días de la semana">

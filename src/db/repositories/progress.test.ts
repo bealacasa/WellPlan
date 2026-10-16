@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "../database";
+import { clock } from "../records";
 import { createExercise } from "./exercises";
 import { createGymClasses, setAttending } from "./gymClasses";
 import { addToDay } from "./plan";
@@ -30,7 +31,11 @@ beforeEach(async () => {
 describe("progreso", () => {
   it("semana, racha y últimas semanas según el plan actual", async () => {
     const prensa = await strength();
+    // El lunes está en el plan desde antes de las semanas que se miran.
+    const realNow = clock.now;
+    clock.now = () => "2026-09-01T10:00:00.000Z";
     await addToDay(1, { exerciseId: prensa }); // lunes
+    clock.now = realNow;
     const [yoga] = await createGymClasses(
       { name: "Yoga", startTime: "18:00", durationMin: 45, room: "", instructor: "" },
       [3],

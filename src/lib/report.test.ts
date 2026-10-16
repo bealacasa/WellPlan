@@ -53,6 +53,7 @@ describe("informe para el fisio", () => {
       {
         ...sync,
         id: "e",
+        createdAt: "2026-01-01T10:00:00Z", // ya estaba en el plan todo el periodo
         weekday: 2,
         sessionId: null,
         exerciseId: "p",

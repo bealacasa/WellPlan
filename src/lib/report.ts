@@ -1,6 +1,7 @@
 import type { Exercise, GymClass, PlanEntry, WeightLog } from "@/db/types";
-import { addDays, isoWeekday, localDateKey } from "./dates";
+import { addDays, localDateKey } from "./dates";
 import { feelingSummary, logSummary, shortDate } from "./labels";
+import { plannedOn } from "./planDays";
 import { hadDiscomfort } from "./progression";
 
 /*
@@ -55,13 +56,10 @@ export function buildReport(data: Data, today: Date, weeks: number): Report {
     .filter((l) => alive(l) && l.date >= from && l.date <= to && exerciseById.has(l.exerciseId))
     .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt));
 
-  const plannedWeekdays = new Set([
-    ...data.entries.filter(alive).map((e) => e.weekday),
-    ...data.classes.filter((c) => alive(c) && c.attending).map((c) => c.weekday),
-  ]);
+  const isPlanned = plannedOn(data.entries, data.classes, today);
   let plannedDays = 0;
   for (let d = fromDate; localDateKey(d) <= to; d = addDays(d, 1)) {
-    if (plannedWeekdays.has(isoWeekday(d))) plannedDays++;
+    if (isPlanned(d)) plannedDays++;
   }
 
   const byExercise = new Map<string, WeightLog[]>();

@@ -1,6 +1,8 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { notifyLocalChange } from "../changes";
 import { db } from "../database";
+import { getMeta, setMeta } from "../meta";
+import { addDays, isoWeekday, localDateKey } from "@/lib/dates";
 import { dayTargetSchema, type DayTarget } from "@/lib/validation";
 import { createRecord, isAlive, tombstone, touch } from "../records";
 import type { PlanEntry } from "../types";
@@ -90,4 +92,50 @@ export async function removeExerciseFromPlan(exerciseId: string): Promise<void> 
   for (const entry of entries.filter(isAlive)) {
     await db.planEntries.update(entry.id, tombstone<PlanEntry>());
   }
+}
+
+/**
+ * Vacía del plan los días que ya han pasado: lo que tocaba el martes se quita el miércoles,
+ * y la semana siguiente ese día sale como «Descanso» hasta que se vuelva a planificar.
+ * Una entrada se quita cuando su día de la semana ha pasado DESPUÉS de crearla (lo añadido
+ * el miércoles para el martes es para el martes siguiente). Lo que ya se hizo sigue en
+ * Progreso: los registros no se tocan y Progreso recuerda qué estaba planificado cada día.
+ *
+ * Solo cuenta desde la primera vez que se ejecuta (`planCleanupFrom`), para no vaciar de
+ * golpe el plan que ya había. Devuelve cuántas entradas se han quitado.
+ */
+export async function clearPastDays(today: Date): Promise<number> {
+  const todayKey = localDateKey(today);
+  const from = await getMeta<string>("planCleanupFrom");
+  if (!from) {
+    await setMeta("planCleanupFrom", todayKey);
+    return 0;
+  }
+  const passed = (await db.planEntries.toArray()).filter((entry) => {
+    if (!isAlive(entry)) return false;
+    // Último día con ese día de la semana, antes de hoy (de 1 a 7 días atrás).
+    const back = (isoWeekday(today) - entry.weekday + 7) % 7 || 7;
+    const lastDay = localDateKey(addDays(today, -back));
+    return lastDay >= from && localDateKey(new Date(entry.createdAt)) <= lastDay;
+  });
+  if (passed.length === 0) return 0;
+  await db.transaction("rw", db.planEntries, async () => {
+    for (const entry of passed) await db.planEntries.update(entry.id, tombstone<PlanEntry>());
+  });
+  notifyLocalChange();
+  return passed.length;
+}
+
+let cleanupStarted = false;
+
+/** Vacía los días pasados al abrir la app, al volver a ella y cada hora (por si pasa la medianoche). */
+export function startPlanCleanup(): void {
+  if (cleanupStarted) return;
+  cleanupStarted = true;
+  const run = () => void clearPastDays(new Date()).catch(() => undefined);
+  run();
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") run();
+  });
+  setInterval(run, 60 * 60_000);
 }
