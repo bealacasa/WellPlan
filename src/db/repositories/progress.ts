@@ -1,5 +1,6 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { addDays, localDateKey, startOfWeek } from "@/lib/dates";
+import { plannedOn } from "@/lib/planDays";
 import { buildReport, type Report } from "@/lib/report";
 import {
   personalRecords,
@@ -13,8 +14,8 @@ import type { Exercise, ExerciseType, WeightLog } from "../types";
 
 /*
  * Progreso calculado a partir de los registros (un día "entrenado" = cualquier registro ese
- * día). Lo "planificado" usa el plan y el horario ACTUALES: si cambias el plan, las semanas
- * pasadas se comparan con el plan nuevo (no se guarda la historia del plan).
+ * día). Lo "planificado" de los días pasados es el plan tal como era ese día (los días que
+ * pasan se vacían del plan; ver `plannedOn`); las clases usan el horario ACTUAL.
  */
 
 export type DayStatus = { weekday: number; date: string; planned: boolean; trained: boolean };
@@ -37,8 +38,8 @@ export type Progress = {
   allClasses: { id: string; name: string }[];
   /** Días con algún registro ("YYYY-MM-DD"), para el calendario. */
   trainedDates: Set<string>;
-  /** Días de la semana (1–7) con algo planificado. */
-  plannedWeekdays: Set<number>;
+  /** ¿Había algo planificado ese día? (Para el calendario.) */
+  isPlanned: (date: Date) => boolean;
   /** Primer día con un registro (para no ir más atrás en el calendario). */
   firstDate: string | null;
   /** Peso de hace unos meses frente al de ahora, por ejercicio con kilos. */
@@ -60,26 +61,23 @@ export async function getProgress(today: Date): Promise<Progress> {
   const aliveLogs = logs.filter(isAlive);
   const trainedDates = new Set(aliveLogs.map((l) => l.date));
 
-  const plannedWeekdays = new Set([
-    ...entries.filter(isAlive).map((e) => e.weekday),
-    ...classes.filter((c) => isAlive(c) && c.attending).map((c) => c.weekday),
-  ]);
-  const plannedPerWeek = plannedWeekdays.size;
+  const isPlanned = plannedOn(entries, classes, today);
 
   const monday = startOfWeek(today);
   const daysOfWeek = (start: Date) =>
     Array.from({ length: 7 }, (_, i) => localDateKey(addDays(start, i)));
   const trainedIn = (start: Date) => daysOfWeek(start).filter((d) => trainedDates.has(d)).length;
-  // Sin plan, basta con entrenar algún día para que la semana cuente.
-  const goal = Math.max(1, plannedPerWeek);
 
   const week = daysOfWeek(monday).map((date, i) => ({
     weekday: i + 1,
     date,
-    planned: plannedWeekdays.has(i + 1),
+    planned: isPlanned(addDays(monday, i)),
     trained: trainedDates.has(date),
   }));
   const trainedThisWeek = week.filter((d) => d.trained).length;
+  const plannedPerWeek = week.filter((d) => d.planned).length;
+  // Sin plan, basta con entrenar algún día para que la semana cuente.
+  const goal = Math.max(1, plannedPerWeek);
 
   // Racha: la semana actual suma si ya está cumplida; si no, aún no la rompe.
   let streak = trainedThisWeek >= goal ? 1 : 0;
@@ -128,7 +126,7 @@ export async function getProgress(today: Date): Promise<Progress> {
     exercisesThisMonth,
     allClasses,
     trainedDates,
-    plannedWeekdays,
+    isPlanned,
     firstDate: [...trainedDates].sort()[0] ?? null,
     gains: strengthGains(exercises, aliveLogs, today),
     records: personalRecords(exercises, aliveLogs),

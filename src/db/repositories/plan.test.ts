@@ -4,7 +4,10 @@ import { fakeCloud } from "@/test/fakeCloud";
 import { syncOnce } from "@/sync/engine";
 import { db, WellPlanDB } from "../database";
 import { createExercise, deleteExercise } from "./exercises";
-import { addToDay, getWeekPlan, removeFromDay } from "./plan";
+import { addToDay, clearPastDays, getWeekPlan, removeFromDay } from "./plan";
+import { getProgress } from "./progress";
+import { getMeta, setMeta } from "../meta";
+import { clock } from "../records";
 import { createSession, deleteSession, listSessions, updateSession } from "./sessions";
 
 const exercise = (name: string) =>
@@ -164,5 +167,54 @@ describe("cardio y ejercicios sueltos en el plan", () => {
     await addToDay(2, { exerciseId: yoga });
     await deleteExercise(yoga);
     expect((await getWeekPlan())[2]).toEqual([]);
+  });
+});
+
+describe("vaciar los días que pasan", () => {
+  const WEDNESDAY = new Date(2026, 9, 14, 12); // miércoles 14/10/2026
+  const at = async <T>(iso: string, action: () => Promise<T>): Promise<T> => {
+    const realNow = clock.now;
+    clock.now = () => iso;
+    try {
+      return await action();
+    } finally {
+      clock.now = realNow;
+    }
+  };
+
+  it("la primera vez solo anota desde cuándo y no quita nada", async () => {
+    const prensa = await exercise("Prensa");
+    await at("2026-10-05T10:00:00.000Z", () => addToDay(1, { exerciseId: prensa }));
+    expect(await clearPastDays(WEDNESDAY)).toBe(0);
+    expect(await getMeta("planCleanupFrom")).toBe("2026-10-14");
+    expect((await getWeekPlan())[1]).toHaveLength(1);
+  });
+
+  it("quita lo de los días ya pasados, no lo de después ni lo añadido para la semana que viene", async () => {
+    await setMeta("planCleanupFrom", "2026-10-10");
+    const [prensa, remo, yoga] = [
+      await exercise("Prensa"),
+      await exercise("Remo"),
+      await exercise("Yoga"),
+    ];
+    await at("2026-10-05T10:00:00.000Z", async () => {
+      await addToDay(1, { exerciseId: prensa }); // lunes 12: ya pasó → se quita
+      await addToDay(5, { exerciseId: remo }); // viernes 9: antes de empezar a limpiar → se queda
+      await addToDay(4, { exerciseId: remo }); // jueves 15: aún no ha llegado → se queda
+    });
+    // Añadido hoy (miércoles) para el martes: es para el martes que viene → se queda.
+    await at("2026-10-14T09:00:00.000Z", () => addToDay(2, { exerciseId: yoga }));
+
+    expect(await clearPastDays(WEDNESDAY)).toBe(1);
+    const week = await getWeekPlan();
+    expect(week[1]).toEqual([]);
+    expect(week[2]).toHaveLength(1);
+    expect(week[4]).toHaveLength(1);
+    expect(week[5]).toHaveLength(1);
+    expect(await clearPastDays(WEDNESDAY)).toBe(0);
+
+    // Progreso recuerda que el lunes tocaba (aunque ya no esté en el plan).
+    const p = await getProgress(WEDNESDAY);
+    expect(p.week.map((d) => d.planned)).toEqual([true, false, false, true, true, false, false]);
   });
 });

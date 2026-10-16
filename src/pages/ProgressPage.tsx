@@ -152,7 +152,7 @@ function MonthCalendar({ progress: p }: { progress: Progress }) {
           const key = localDateKey(date);
           const isTrained = p.trainedDates.has(key);
           const isFuture = key > todayKey;
-          const planned = p.plannedWeekdays.has(isoWeekday(date));
+          const planned = p.isPlanned(date);
           const status = isTrained
             ? "entrenado"
             : planned

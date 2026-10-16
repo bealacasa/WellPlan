@@ -5,6 +5,8 @@ export type MetaKey =
   | "storageWarningDismissedAt"
   | "lastBackupAt"
   | "lastSyncAt"
+  /** Desde qué día ("YYYY-MM-DD") se vacían del plan los días que pasan (ver clearPastDays). */
+  | "planCleanupFrom"
   /** Cuenta con la que se sincronizan los datos de este dispositivo. */
   | "syncUserId"
   /** Cursor de descarga por tabla remota (último server_updated_at visto). */
