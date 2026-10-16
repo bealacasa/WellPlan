@@ -12,6 +12,7 @@ import { addLog, deleteLog, useLogs } from "@/db/repositories/weightLogs";
 import type { Exercise, WeightLog } from "@/db/types";
 import { localDateKey } from "@/lib/dates";
 import { hadDiscomfort, suggestNextKg, worseningFeeling } from "@/lib/progression";
+import { bestKg, personalRecords } from "@/lib/strength";
 import {
   EXERCISE_TYPE_LABEL,
   feelingSummary,
@@ -77,6 +78,9 @@ function ExerciseView({ mode }: { mode: "info" | "log" }) {
     if (ok) await deleteLog(log.id);
   }
 
+  // Registro con el mejor peso (si superó una marca anterior): se marca con medalla.
+  const recordLogId = personalRecords([exercise], logs)[0]?.logId ?? null;
+
   const chart = isCardio(exercise.type)
     ? { unit: "km" as const, data: logs.map((l) => ({ date: l.date, value: l.distanceKm })) }
     : usesKg(exercise.type)
@@ -130,6 +134,7 @@ function ExerciseView({ mode }: { mode: "info" | "log" }) {
           exercise={exercise}
           last={logs[0] ?? null}
           suggestion={suggestNextKg(exercise, logs)}
+          best={bestKg(logs)}
           worsening={worseningFeeling(logs)}
           onSaved={setSaved}
         />
@@ -159,6 +164,11 @@ function ExerciseView({ mode }: { mode: "info" | "log" }) {
                   <span className="font-semibold tabular-nums">
                     {logSummary(log, exercise.type)}
                   </span>
+                  {log.id === recordLogId && (
+                    <span className="ml-2 inline-block whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-xs font-bold text-accent">
+                      🏅 Récord
+                    </span>
+                  )}
                   {feelingSummary(log) && (
                     <span
                       className={`block text-sm ${hadDiscomfort(log) ? "font-semibold text-danger" : "text-muted"}`}
@@ -192,6 +202,8 @@ type QuickLogProps = {
   last: WeightLog | null;
   /** Peso sugerido para subir (sobrecarga progresiva), si toca. */
   suggestion: number | null;
+  /** Mejor peso registrado hasta ahora (para celebrar un récord). */
+  best: number | null;
   /** Sensación de las tres últimas veces si va a peor (de la más antigua a la última). */
   worsening: number[] | null;
   onSaved: (message: string) => void;
@@ -254,7 +266,7 @@ function useSave(onSaved: QuickLogProps["onSaved"]) {
 }
 
 /** Fuerza, estiramientos y clases: kilos ±2,5, series y repeticiones. */
-function StrengthForm({ exercise, last, suggestion, onSaved }: QuickLogProps) {
+function StrengthForm({ exercise, last, suggestion, best, onSaved }: QuickLogProps) {
   const withKg = usesKg(exercise.type);
   const initialKg = last?.kg ?? exercise.targetKg;
   const [kg, setKg] = useState(initialKg !== null ? formatKg(initialKg) : "");
@@ -286,7 +298,10 @@ function StrengthForm({ exercise, last, suggestion, onSaved }: QuickLogProps) {
         painArea,
         note,
       });
-      return value !== null ? `Guardado: ${formatKg(value)} kg` : "Guardado";
+      if (value === null) return "Guardado";
+      return best !== null && value > best
+        ? `¡Nuevo récord! ${formatKg(value)} kg 🏅`
+        : `Guardado: ${formatKg(value)} kg`;
     });
   }
 
