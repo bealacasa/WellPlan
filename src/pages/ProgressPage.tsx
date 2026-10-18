@@ -248,7 +248,7 @@ function GainsCard({ progress: p }: { progress: Progress }) {
             {(open ? p.gains : p.gains.slice(0, PREVIEW)).map((g) => (
               <li key={g.id}>
                 <Link
-                  to={`/ejercicios/${g.id}`}
+                  to={`/ejercicios/${g.id}?volver=/progreso`}
                   className="flex min-h-14 items-center gap-3 rounded-2xl bg-surface-2 px-4 py-2 active:scale-[0.99]"
                 >
                   <span className="min-w-0 flex-1">
@@ -304,7 +304,7 @@ function RecordsCard({ progress: p }: { progress: Progress }) {
               return (
                 <li key={r.id}>
                   <Link
-                    to={`/ejercicios/${r.id}`}
+                    to={`/ejercicios/${r.id}?volver=/progreso`}
                     className="flex min-h-14 items-center gap-3 rounded-2xl bg-surface-2 px-4 py-2 active:scale-[0.99]"
                   >
                     <span aria-hidden="true" className="text-2xl">
@@ -439,7 +439,7 @@ function ExercisesCard({ progress: p }: { progress: Progress }) {
               return (
                 <li key={e.id}>
                   <Link
-                    to={`/ejercicios/${e.id}`}
+                    to={`/ejercicios/${e.id}?volver=/progreso`}
                     className="flex min-h-12 items-center gap-3 rounded-2xl bg-surface-2 px-4 py-3 active:scale-[0.99]"
                   >
                     <span

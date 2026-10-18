@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ExercisePhoto } from "@/components/ExercisePhoto";
 import { FeelingField } from "@/components/FeelingField";
@@ -11,6 +11,7 @@ import { useExercise } from "@/db/repositories/exercises";
 import { addLog, deleteLog, useLogs } from "@/db/repositories/weightLogs";
 import type { Exercise, WeightLog } from "@/db/types";
 import { localDateKey } from "@/lib/dates";
+import { backLabel, safeReturnPath } from "@/lib/navigation";
 import { hadDiscomfort, suggestNextKg, worseningFeeling } from "@/lib/progression";
 import { bestKg, personalRecords } from "@/lib/strength";
 import {
@@ -49,6 +50,9 @@ function ExerciseView({ mode }: { mode: "info" | "log" }) {
   const logs = useLogs(id);
   const [dialog, confirm] = useConfirm();
   const [saved, setSaved] = useState<string | null>(null);
+  // Abierto desde otra pantalla (p. ej. Progreso, ?volver=/progreso): «←» vuelve allí.
+  const back =
+    safeReturnPath(useSearchParams()[0].get("volver")) ?? (mode === "log" ? "/" : "/ejercicios");
 
   // La confirmación flota sobre la barra de pestañas y se oculta sola.
   useEffect(() => {
@@ -90,11 +94,8 @@ function ExerciseView({ mode }: { mode: "info" | "log" }) {
   return (
     <>
       <div className="mb-2 flex items-center justify-between gap-3">
-        <Link
-          to={mode === "log" ? "/" : "/ejercicios"}
-          className="inline-flex min-h-11 items-center font-medium text-muted"
-        >
-          {mode === "log" ? "← Hoy" : "← Ejercicios"}
+        <Link to={back} className="inline-flex min-h-11 items-center font-medium text-muted">
+          ← {backLabel(back)}
         </Link>
         {mode === "info" && (
           <Link

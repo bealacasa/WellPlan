@@ -248,5 +248,9 @@ describe("ruta de vuelta segura", () => {
     expect(safeReturnPath("https://evil.com")).toBeNull();
     expect(safeReturnPath("/ajustes?x=1")).toBeNull();
     expect(safeReturnPath(null)).toBeNull();
+    expect(safeReturnPath("/progreso")).toBe("/progreso");
+    const { backLabel } = await import("./navigation");
+    expect(backLabel("/progreso")).toBe("Progreso");
+    expect(backLabel("/ejercicios")).toBe("Ejercicios");
   });
 });
