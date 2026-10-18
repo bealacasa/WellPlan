@@ -1,12 +1,13 @@
 import { createContext, use, useEffect, useId, useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { ExercisePhoto } from "@/components/ExercisePhoto";
 import { SessionPhoto } from "@/components/SessionPhoto";
 import { TypeChip } from "@/components/typeStyle";
 import { Card, buttonPrimary } from "@/components/ui";
 import { streakLabel, useProgress, weekSummary } from "@/db/repositories/progress";
-import { addExtra, removeExtra } from "@/db/repositories/dayExtras";
-import { useTodayPlan, type TodayPlan } from "@/db/repositories/today";
+import { addDoneExtra, removeDoneExtra, restoreDoneExtra } from "@/db/repositories/dayExtras";
+import { useTodayPlan, type TodayItem, type TodayPlan } from "@/db/repositories/today";
+import type { PlanTarget } from "@/db/repositories/plan";
 import { deleteLog, quickLog, restoreLogs, unmarkDay } from "@/db/repositories/weightLogs";
 import type { Exercise, WeightLog } from "@/db/types";
 import { localDateKey } from "@/lib/dates";
@@ -83,6 +84,48 @@ export function TodayPage() {
       }
     : null;
 
+  const navigate = useNavigate();
+
+  /** Algo no planificado que ya has hecho: se añade a hoy y se registra como hecho. */
+  async function addDone(target: PlanTarget, name: string) {
+    const date = localDateKey(new Date());
+    const result = await addDoneExtra(date, target);
+    const undo = () =>
+      void removeDoneExtra(result.extraId, date, []).then(() =>
+        Promise.all(result.logIds.map((id) => deleteLog(id))),
+      );
+    // Un ejercicio que no se puede registrar de un toque (cardio, faltan kilos…): a su registro.
+    if ("exerciseId" in target && result.pending.length > 0) {
+      navigate(`/hoy/${target.exerciseId}`);
+      return;
+    }
+    if (result.pending.length > 0) {
+      if (!openIds.has(result.extraId)) toggle(result.extraId);
+      const total = result.logIds.length + result.pending.length;
+      showToast({ text: `${name}: ${result.logIds.length} de ${total} registrados`, undo });
+      return;
+    }
+    showToast({ text: `${name} registrado`, undo });
+  }
+
+  /** Quitar de hoy algo añadido: también se desmarca lo hecho (con opción de deshacer). */
+  async function removeDone(item: TodayItem) {
+    const date = localDateKey(new Date());
+    const elsewhere = new Set(
+      (plan?.items ?? [])
+        .filter((i) => i.entryId !== item.entryId)
+        .flatMap((i) => i.exercises.map((e) => e.id)),
+    );
+    const ids = item.exercises.map((e) => e.id).filter((id) => !elsewhere.has(id));
+    const logIds = await removeDoneExtra(item.entryId, date, ids);
+    const target: PlanTarget =
+      item.kind === "session" ? { sessionId: item.targetId } : { exerciseId: item.targetId };
+    showToast({
+      text: `${item.title} quitado de hoy`,
+      undo: () => void restoreDoneExtra(date, target, logIds),
+    });
+  }
+
   return (
     <RowContext value={rowState}>
       <Hero plan={plan} total={all.length} done={done} />
@@ -104,7 +147,7 @@ export function TodayPage() {
                 done={plan.done}
                 open={openIds.has(item.entryId)}
                 onToggle={() => toggle(item.entryId)}
-                onRemove={item.extra ? () => void removeExtra(item.entryId) : undefined}
+                onRemove={item.extra ? () => void removeDone(item) : undefined}
               />
             ) : (
               <Card key={item.entryId}>
@@ -118,20 +161,20 @@ export function TodayPage() {
                   </p>
                 )}
                 <ExerciseList title={item.title} exercises={item.exercises} done={plan.done} />
-                {item.extra && <RemoveFromToday onRemove={() => void removeExtra(item.entryId)} />}
+                {item.extra && <RemoveFromToday onRemove={() => void removeDone(item)} />}
               </Card>
             ),
           )}
         </div>
       )}
-      {plan?.hasExercises && <AddToToday plan={plan} date={localDateKey(now)} />}
+      {plan?.hasExercises && <AddToToday plan={plan} onAdd={(t, name) => void addDone(t, name)} />}
       {plan?.hasExercises && <ProgressLink today={now} />}
       {toast}
     </RowContext>
   );
 }
 
-/** Quitar algo añadido solo para hoy (el plan semanal no cambia). */
+/** Quitar algo añadido hoy: se desmarca lo hecho (el plan semanal no cambia). */
 function RemoveFromToday({ onRemove }: { onRemove: () => void }) {
   return (
     <button
@@ -145,24 +188,29 @@ function RemoveFromToday({ onRemove }: { onRemove: () => void }) {
 }
 
 /**
- * Añadir una sesión o un ejercicio SOLO para hoy (p. ej. hoy me apetece Yoga): no toca el
- * plan semanal. Si no existe aún, enlaces para crearlo.
+ * Apuntar algo que has hecho hoy sin tenerlo planificado (p. ej. al final hice Yoga): se
+ * elige entre los ejercicios y sesiones que ya existen y queda registrado como hecho. El
+ * plan semanal no cambia. Si no existe aún, enlaces para crearlo.
  */
-function AddToToday({ plan, date }: { plan: TodayPlan; date: string }) {
+function AddToToday({
+  plan,
+  onAdd,
+}: {
+  plan: TodayPlan;
+  onAdd: (target: PlanTarget, name: string) => void;
+}) {
   const { sessions, exercises } = plan.addable;
+  const names = new Map([...sessions, ...exercises].map((x) => [x.id, x.name]));
   return (
     <Card className="mt-4">
-      <h2 className="text-lg font-bold">
-        {plan.items.length === 0 ? "Hoy no tienes nada planificado" : "¿Algo más hoy?"}
-      </h2>
+      <h2 className="text-lg font-bold">¿Has hecho algo que no estaba en el plan?</h2>
       <p className="text-sm text-muted">
-        {plan.items.length === 0 ? "Descansa, o añade algo solo para hoy. " : ""}
-        Se añade solo para hoy; tu plan semanal no cambia.
+        Elígelo y se apunta como hecho hoy, igual que la última vez. Tu plan semanal no cambia.
       </p>
       {(sessions.length > 0 || exercises.length > 0) && (
         <>
           <label htmlFor="add-today" className="sr-only">
-            Añadir solo para hoy
+            Apuntar algo hecho hoy
           </label>
           <select
             id="add-today"
@@ -170,11 +218,11 @@ function AddToToday({ plan, date }: { plan: TodayPlan; date: string }) {
             onChange={(e) => {
               const [kind, id] = e.target.value.split(":");
               if (!id) return;
-              void addExtra(date, kind === "s" ? { sessionId: id } : { exerciseId: id });
+              onAdd(kind === "s" ? { sessionId: id } : { exerciseId: id }, names.get(id) ?? "");
             }}
             className="mt-3 min-h-12 w-full rounded-xl border border-dashed border-border bg-transparent px-3 font-medium"
           >
-            <option value="">+ Añadir sesión o ejercicio…</option>
+            <option value="">+ He hecho…</option>
             {sessions.length > 0 && (
               <optgroup label="Sesiones">
                 {sessions.map((s) => (
