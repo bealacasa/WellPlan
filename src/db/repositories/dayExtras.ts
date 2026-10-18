@@ -1,8 +1,9 @@
 import { notifyLocalChange } from "../changes";
 import { db } from "../database";
 import { createRecord, isAlive, tombstone } from "../records";
-import type { DayExtra } from "../types";
+import type { DayExtra, Exercise } from "../types";
 import type { PlanTarget } from "./plan";
+import { quickLog, restoreLogs, unmarkDay } from "./weightLogs";
 
 const MAX_PER_DAY = 50;
 
@@ -47,4 +48,71 @@ export async function removeExtrasOf(target: PlanTarget): Promise<void> {
   for (const row of rows.filter(isAlive)) {
     await db.dayExtras.update(row.id, tombstone<DayExtra>());
   }
+}
+
+/** Resultado de apuntar algo hecho que no estaba planificado. */
+export type DoneExtra = {
+  extraId: string;
+  /** Registros creados (para deshacer). */
+  logIds: string[];
+  /** Ejercicios que no se pueden registrar de un toque (cardio, faltan kilos, había nota…). */
+  pending: Exercise[];
+};
+
+/**
+ * Algo que NO estaba planificado y que ya has hecho ese día: se añade a esa fecha (el plan
+ * semanal no cambia) y se registra como hecho igual que la última vez, como el ✓ de Hoy.
+ * En una sesión, cada uno de sus ejercicios; lo ya registrado ese día no se repite.
+ */
+export async function addDoneExtra(date: string, target: PlanTarget): Promise<DoneExtra> {
+  const exercises = await exercisesOf(target);
+  const extraId = await addExtra(date, target);
+  const logIds: string[] = [];
+  const pending: Exercise[] = [];
+  for (const exercise of exercises) {
+    const already = (
+      await db.weightLogs.where("[exerciseId+date]").equals([exercise.id, date]).toArray()
+    ).some(isAlive);
+    if (already) continue;
+    const logId = await quickLog(exercise, date);
+    if (logId) logIds.push(logId);
+    else pending.push(exercise);
+  }
+  return { extraId, logIds, pending };
+}
+
+/**
+ * Quita de ese día algo añadido y desmarca lo hecho de sus ejercicios (los de `exerciseIds`:
+ * los que no están también en otra cosa de hoy). Devuelve los registros quitados, para deshacer.
+ */
+export async function removeDoneExtra(
+  extraId: string,
+  date: string,
+  exerciseIds: readonly string[],
+): Promise<string[]> {
+  const logIds: string[] = [];
+  for (const id of exerciseIds) logIds.push(...(await unmarkDay(id, date)));
+  await removeExtra(extraId);
+  return logIds;
+}
+
+/** Deshace `removeDoneExtra`: vuelve a añadirlo a ese día y recupera sus registros. */
+export async function restoreDoneExtra(
+  date: string,
+  target: PlanTarget,
+  logIds: string[],
+): Promise<void> {
+  await addExtra(date, target);
+  await restoreLogs(logIds);
+}
+
+async function exercisesOf(target: PlanTarget): Promise<Exercise[]> {
+  if ("exerciseId" in target) {
+    const exercise = await db.exercises.get(target.exerciseId);
+    return isAlive(exercise) ? [exercise] : [];
+  }
+  const session = await db.sessions.get(target.sessionId);
+  if (!isAlive(session)) return [];
+  const all = await db.exercises.bulkGet(session.exerciseIds);
+  return all.filter(isAlive);
 }

@@ -126,12 +126,23 @@ describe("horario del gimnasio", () => {
     await user.click(screen.getByRole("button", { name: "45 min" }));
     await user.type(screen.getByLabelText("Sala (opcional)"), "Sala 2");
     await user.click(screen.getByRole("button", { name: "Añadir al horario" }));
-
-    const going = await screen.findByRole("button", { name: "Voy a Pilates a las 18:30" });
-    expect(going.getAttribute("aria-pressed")).toBe("false");
+    await screen.findByRole("button", { name: "Voy a Pilates a las 18:30" });
     expect(await db.gymClasses.count()).toBe(2);
+
+    // El horario muestra el primer día de la semana elegido (el domingo, eso es el lunes):
+    // se va al día de hoy para marcar «Voy» en la clase de hoy.
+    await memory.navigate(`/horario?dia=${today}`);
+    await screen.findByRole("heading", { name: weekdayName(today), level: 2 });
+    const going = screen.getByRole("button", { name: "Voy a Pilates a las 18:30" });
+    expect(going.getAttribute("aria-pressed")).toBe("false");
     await user.click(going);
-    await vi.waitFor(() => expect(going.getAttribute("aria-pressed")).toBe("true"));
+    await vi.waitFor(() =>
+      expect(
+        screen
+          .getByRole("button", { name: "Voy a Pilates a las 18:30" })
+          .getAttribute("aria-pressed"),
+      ).toBe("true"),
+    );
 
     await memory.navigate("/");
     const list = await screen.findByRole("list", { name: "Pilates" });
@@ -384,27 +395,54 @@ describe("informe para el fisio", () => {
   });
 });
 
-describe("solo para hoy", () => {
-  it("se añade una sesión solo hoy, sin tocar el plan, y se puede quitar", async () => {
+describe("algo hecho que no estaba en el plan", () => {
+  it("una sesión se apunta como hecha (lo que se puede de un toque), sin tocar el plan, y se puede quitar", async () => {
+    const { createExercise } = await import("@/db/repositories/exercises");
     const { createSession } = await import("@/db/repositories/sessions");
-    const id = await exercise("Prensa");
-    await createSession({ name: "Glúteo", exerciseIds: [id] });
+    const prensa = await exercise("Prensa"); // sin kilos: hay que registrarla a mano
+    const puente = await createExercise({
+      name: "Puente",
+      type: "peso_corporal",
+      physioNotes: "",
+      sets: 3,
+      reps: 12,
+      durationSec: null,
+      targetKg: null,
+    });
+    await createSession({ name: "Glúteo", exerciseIds: [prensa, puente] });
     const user = userEvent.setup();
     render(
       <RouterProvider router={createMemoryRouter(router.routes, { initialEntries: ["/"] })} />,
     );
-    const select = await screen.findByLabelText("Añadir solo para hoy");
+    const select = await screen.findByLabelText("Apuntar algo hecho hoy");
     const session = (await db.sessions.toArray())[0]!;
     await user.selectOptions(select, `s:${session.id}`);
-    expect(await screen.findByRole("button", { name: /Glúteo/ })).toBeTruthy();
+    expect(await screen.findByText("✓ Glúteo: 1 de 2 registrados")).toBeTruthy();
     expect(await db.planEntries.count()).toBe(0);
     expect((await db.dayExtras.toArray())[0]).toMatchObject({ sessionId: session.id });
+    const logs = (await db.weightLogs.toArray()).filter((l) => l.deletedAt === null);
+    expect(logs.map((l) => l.exerciseId)).toEqual([puente]);
 
-    await user.click(screen.getByRole("button", { name: /Glúteo/ }));
-    await user.click(screen.getByRole("button", { name: "Quitar de hoy" }));
+    // La tarjeta queda abierta con Prensa pendiente; «Quitar de hoy» desmarca lo hecho.
+    await user.click(await screen.findByRole("button", { name: "Quitar de hoy" }));
     await vi.waitFor(async () =>
       expect((await db.dayExtras.toArray())[0]?.deletedAt).not.toBeNull(),
     );
+    expect((await db.weightLogs.toArray()).every((l) => l.deletedAt !== null)).toBe(true);
+  });
+
+  it("un ejercicio con kilos se apunta igual que la última vez", async () => {
+    const { addLog } = await import("@/db/repositories/weightLogs");
+    const remo = await exercise("Remo");
+    await addLog(remo, { date: "2026-01-05", kg: 25, sets: 3, reps: 12, note: null });
+    const user = userEvent.setup();
+    render(
+      <RouterProvider router={createMemoryRouter(router.routes, { initialEntries: ["/"] })} />,
+    );
+    await user.selectOptions(await screen.findByLabelText("Apuntar algo hecho hoy"), `e:${remo}`);
+    expect(await screen.findByText("✓ Remo registrado")).toBeTruthy();
+    const today = (await db.weightLogs.toArray()).filter((l) => l.date > "2026-01-05");
+    expect(today[0]).toMatchObject({ kg: 25, sets: 3, reps: 12 });
   });
 });
 
