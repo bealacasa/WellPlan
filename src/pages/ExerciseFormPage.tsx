@@ -78,7 +78,7 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
     e.preventDefault();
     const kg = targetKg.trim() === "" ? null : parseKg(targetKg);
     if (targetKg.trim() !== "" && kg === null) {
-      setError("El peso objetivo debe ser un número entre 0 y 500 (por ejemplo 22,5).");
+      setError("El peso debe ser un número entre 0 y 500 (por ejemplo 22,5).");
       return;
     }
     const cardio = isCardio(type);
@@ -294,7 +294,7 @@ function ExerciseForm({ exercise }: { exercise: Exercise | null }) {
         {usesKg(type) && (
           <KgField
             id="target"
-            label="Peso objetivo (opcional)"
+            label="Peso (se actualiza solo con el último que levantes)"
             value={targetKg}
             onChange={setTargetKg}
           />
