@@ -2,7 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { notifyLocalChange } from "../changes";
 import { db } from "../database";
 import { getMeta, setMeta } from "../meta";
-import { addDays, isoWeekday, localDateKey } from "@/lib/dates";
+import { addDays, isoWeekday, localDateKey, startOfWeek } from "@/lib/dates";
 import { dayTargetSchema, type DayTarget } from "@/lib/validation";
 import { createRecord, isAlive, tombstone, touch } from "../records";
 import type { PlanEntry } from "../types";
@@ -101,22 +101,26 @@ export async function removeExerciseFromPlan(exerciseId: string): Promise<void> 
  * el miércoles para el martes es para el martes siguiente). Lo que ya se hizo sigue en
  * Progreso: los registros no se tocan y Progreso recuerda qué estaba planificado cada día.
  *
- * Solo cuenta desde la primera vez que se ejecuta (`planCleanupFrom`), para no vaciar de
- * golpe el plan que ya había. Devuelve cuántas entradas se han quitado.
+ * Vacía los días ya pasados de la semana actual y, de semanas anteriores, los que pasaron
+ * desde la primera vez que se ejecutó (`planCleanupFrom`). Devuelve cuántas se han quitado.
  */
 export async function clearPastDays(today: Date): Promise<number> {
-  const todayKey = localDateKey(today);
-  const from = await getMeta<string>("planCleanupFrom");
+  // Siempre se vacían los días ya pasados de ESTA semana; de semanas anteriores, solo desde
+  // la primera vez que se ejecutó (si la app no se abrió en días, no se vacía de golpe lo
+  // que sigue por delante esta semana).
+  const monday = localDateKey(startOfWeek(today));
+  let from = await getMeta<string>("planCleanupFrom");
   if (!from) {
-    await setMeta("planCleanupFrom", todayKey);
-    return 0;
+    from = monday;
+    await setMeta("planCleanupFrom", from);
   }
+  const since = from < monday ? from : monday;
   const passed = (await db.planEntries.toArray()).filter((entry) => {
     if (!isAlive(entry)) return false;
     // Último día con ese día de la semana, antes de hoy (de 1 a 7 días atrás).
     const back = (isoWeekday(today) - entry.weekday + 7) % 7 || 7;
     const lastDay = localDateKey(addDays(today, -back));
-    return lastDay >= from && localDateKey(new Date(entry.createdAt)) <= lastDay;
+    return lastDay >= since && localDateKey(new Date(entry.createdAt)) <= lastDay;
   });
   if (passed.length === 0) return 0;
   await db.transaction("rw", db.planEntries, async () => {

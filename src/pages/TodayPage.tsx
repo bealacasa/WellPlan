@@ -10,7 +10,7 @@ import { useTodayPlan, type TodayItem, type TodayPlan } from "@/db/repositories/
 import type { PlanTarget } from "@/db/repositories/plan";
 import { deleteLog, quickLog, restoreLogs, unmarkDay } from "@/db/repositories/weightLogs";
 import type { Exercise, WeightLog } from "@/db/types";
-import { localDateKey } from "@/lib/dates";
+import { localDateKey, weekdayShort } from "@/lib/dates";
 import { EXERCISE_TYPE_LABEL, isClass, logSummary, targetLabel } from "@/lib/labels";
 import { formatKg } from "@/lib/numbers";
 import { asksFeeling, needsReview, quickLogInput } from "@/lib/progression";
@@ -266,20 +266,52 @@ function AddToToday({
 function ProgressLink({ today }: { today: Date }) {
   const progress = useProgress(today);
   if (!progress) return null;
+  const todayKey = localDateKey(today);
   return (
     <Link
       to="/progreso"
-      className="mt-4 flex min-h-16 items-center gap-3 rounded-3xl border border-border bg-surface p-4 shadow-sm active:scale-[0.99]"
+      className="mt-4 block rounded-3xl bg-linear-to-br from-accent-soft to-surface p-4 shadow-sm ring-1 ring-border active:scale-[0.99]"
     >
-      <span className="min-w-0 flex-1">
-        <span className="block font-bold">Tu progreso</span>
-        <span className="block text-sm text-muted">
-          Esta semana: {weekSummary(progress)}
-          {progress.streak > 0 && ` · racha de ${streakLabel(progress.streak)}`}
+      <span className="flex items-center gap-3">
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold uppercase tracking-wide text-accent">
+            Tu progreso
+          </span>
+          <span className="block text-2xl font-extrabold tracking-tight tabular-nums">
+            {weekSummary(progress)}
+          </span>
+        </span>
+        {progress.streak > 0 && (
+          <span className="shrink-0 rounded-full bg-surface px-3 py-1 text-sm font-bold shadow-sm">
+            <span aria-hidden="true">🔥 </span>
+            {streakLabel(progress.streak)}
+            <span className="sr-only"> de racha</span>
+          </span>
+        )}
+        <span aria-hidden="true" className="text-2xl font-bold text-accent">
+          ›
         </span>
       </span>
-      <span aria-hidden="true" className="text-2xl text-muted">
-        ›
+      {/* La semana de un vistazo: relleno = entrenado; discontinuo = tocaba. */}
+      <span className="mt-3 grid grid-cols-7 gap-1" aria-hidden="true">
+        {progress.week.map((d) => (
+          <span key={d.date} className="flex flex-col items-center gap-1">
+            <span
+              className={`text-[11px] font-bold ${d.date === todayKey ? "text-accent" : "text-muted"}`}
+            >
+              {weekdayShort(d.weekday)}
+            </span>
+            <span
+              className={`size-6 rounded-full ${
+                d.trained
+                  ? "bg-linear-to-br from-accent to-accent-2"
+                  : d.planned
+                    ? "border-2 border-dashed border-accent"
+                    : "bg-surface-2"
+              }`}
+            />
+          </span>
+        ))}
       </span>
     </Link>
   );
