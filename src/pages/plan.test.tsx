@@ -435,7 +435,7 @@ describe("algo hecho que no estaba en el plan", () => {
     render(
       <RouterProvider router={createMemoryRouter(router.routes, { initialEntries: ["/"] })} />,
     );
-    const select = await screen.findByLabelText("Apuntar algo hecho hoy");
+    const select = await screen.findByLabelText("Apuntar algo hecho hoy que no estaba en el plan");
     const session = (await db.sessions.toArray())[0]!;
     await user.selectOptions(select, `s:${session.id}`);
     expect(await screen.findByText("✓ Glúteo: 1 de 2 registrados")).toBeTruthy();
@@ -460,7 +460,10 @@ describe("algo hecho que no estaba en el plan", () => {
     render(
       <RouterProvider router={createMemoryRouter(router.routes, { initialEntries: ["/"] })} />,
     );
-    await user.selectOptions(await screen.findByLabelText("Apuntar algo hecho hoy"), `e:${remo}`);
+    await user.selectOptions(
+      await screen.findByLabelText("Apuntar algo hecho hoy que no estaba en el plan"),
+      `e:${remo}`,
+    );
     expect(await screen.findByText("✓ Remo registrado")).toBeTruthy();
     const today = (await db.weightLogs.toArray()).filter((l) => l.date > "2026-01-05");
     expect(today[0]).toMatchObject({ kg: 25, sets: 3, reps: 12 });
