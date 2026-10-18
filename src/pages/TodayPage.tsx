@@ -188,9 +188,9 @@ function RemoveFromToday({ onRemove }: { onRemove: () => void }) {
 }
 
 /**
- * Apuntar algo que has hecho hoy sin tenerlo planificado (p. ej. al final hice Yoga): se
- * elige entre los ejercicios y sesiones que ya existen y queda registrado como hecho. El
- * plan semanal no cambia. Si no existe aún, enlaces para crearlo.
+ * Apuntar algo que has hecho hoy sin tenerlo planificado (p. ej. al final hice Yoga): un
+ * botón «+» que abre la lista de ejercicios y sesiones que ya existen; lo elegido queda
+ * registrado como hecho. El plan semanal no cambia.
  */
 function AddToToday({
   plan,
@@ -200,65 +200,50 @@ function AddToToday({
   onAdd: (target: PlanTarget, name: string) => void;
 }) {
   const { sessions, exercises } = plan.addable;
+  if (sessions.length === 0 && exercises.length === 0) return null;
   const names = new Map([...sessions, ...exercises].map((x) => [x.id, x.name]));
   return (
-    <Card className="mt-4">
-      <h2 className="text-lg font-bold">¿Has hecho algo que no estaba en el plan?</h2>
-      <p className="text-sm text-muted">
-        Elígelo y se apunta como hecho hoy, igual que la última vez. Tu plan semanal no cambia.
-      </p>
-      {(sessions.length > 0 || exercises.length > 0) && (
-        <>
-          <label htmlFor="add-today" className="sr-only">
-            Apuntar algo hecho hoy
-          </label>
-          <select
-            id="add-today"
-            value=""
-            onChange={(e) => {
-              const [kind, id] = e.target.value.split(":");
-              if (!id) return;
-              onAdd(kind === "s" ? { sessionId: id } : { exerciseId: id }, names.get(id) ?? "");
-            }}
-            className="mt-3 min-h-12 w-full rounded-xl border border-dashed border-border bg-transparent px-3 font-medium"
-          >
-            <option value="">+ He hecho…</option>
-            {sessions.length > 0 && (
-              <optgroup label="Sesiones">
-                {sessions.map((s) => (
-                  <option key={s.id} value={`s:${s.id}`}>
-                    {s.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {exercises.length > 0 && (
-              <optgroup label="Ejercicios">
-                {exercises.map((e) => (
-                  <option key={e.id} value={`e:${e.id}`}>
-                    {e.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </>
-      )}
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <Link
-          to="/ejercicios/nuevo"
-          className="min-h-11 content-center rounded-xl bg-surface-2 text-center font-semibold"
-        >
-          + Nuevo ejercicio
-        </Link>
-        <Link
-          to="/sesiones/nueva"
-          className="min-h-11 content-center rounded-xl bg-surface-2 text-center font-semibold"
-        >
-          + Nueva sesión
-        </Link>
-      </div>
-    </Card>
+    // El selector nativo (ruleta del iPhone) va invisible encima del botón: se toca el botón
+    // y se abre la lista.
+    <div className="relative mt-4 flex min-h-12 items-center justify-center gap-2 rounded-full border-2 border-dashed border-accent font-bold text-accent">
+      <span aria-hidden="true" className="text-xl leading-none">
+        +
+      </span>
+      <span aria-hidden="true">He hecho algo más</span>
+      <label htmlFor="add-today" className="sr-only">
+        Apuntar algo hecho hoy que no estaba en el plan
+      </label>
+      <select
+        id="add-today"
+        value=""
+        onChange={(e) => {
+          const [kind, id] = e.target.value.split(":");
+          if (!id) return;
+          onAdd(kind === "s" ? { sessionId: id } : { exerciseId: id }, names.get(id) ?? "");
+        }}
+        className="absolute inset-0 w-full cursor-pointer opacity-0"
+      >
+        <option value="">Elige lo que has hecho…</option>
+        {sessions.length > 0 && (
+          <optgroup label="Sesiones">
+            {sessions.map((s) => (
+              <option key={s.id} value={`s:${s.id}`}>
+                {s.name}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {exercises.length > 0 && (
+          <optgroup label="Ejercicios">
+            {exercises.map((e) => (
+              <option key={e.id} value={`e:${e.id}`}>
+                {e.name}
+              </option>
+            ))}
+          </optgroup>
+        )}
+      </select>
+    </div>
   );
 }
 
