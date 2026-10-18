@@ -395,6 +395,27 @@ describe("informe para el fisio", () => {
   });
 });
 
+describe("volver a Progreso", () => {
+  it("al abrir un ejercicio desde Progreso, «←» vuelve a Progreso", async () => {
+    const { addLog } = await import("@/db/repositories/weightLogs");
+    const { localDateKey } = await import("@/lib/dates");
+    const id = await exercise("Prensa");
+    await addLog(id, { date: localDateKey(new Date()), kg: 20, sets: 3, reps: 12, note: null });
+    const user = userEvent.setup();
+    render(
+      <RouterProvider
+        router={createMemoryRouter(router.routes, { initialEntries: ["/progreso"] })}
+      />,
+    );
+    const card = (await screen.findByRole("heading", { name: "Ejercicios este mes" })).closest(
+      "section",
+    );
+    await user.click(within(card as HTMLElement).getByRole("link", { name: /Prensa/ }));
+    await user.click(await screen.findByRole("link", { name: "← Progreso" }));
+    expect(await screen.findByRole("heading", { name: "Progreso", level: 1 })).toBeTruthy();
+  });
+});
+
 describe("algo hecho que no estaba en el plan", () => {
   it("una sesión se apunta como hecha (lo que se puede de un toque), sin tocar el plan, y se puede quitar", async () => {
     const { createExercise } = await import("@/db/repositories/exercises");
