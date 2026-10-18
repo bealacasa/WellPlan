@@ -2,7 +2,15 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { onLocalChange } from "../changes";
 import { db } from "../database";
 import { createExercise, deleteExercise, listExercises, updateExercise } from "./exercises";
-import { addLog, deleteLog, getLastLog, listLogs } from "./weightLogs";
+import {
+  addLog,
+  deleteLog,
+  getLastLog,
+  listLogs,
+  restoreLogs,
+  syncAllLastKg,
+  unmarkDay,
+} from "./weightLogs";
 
 const input = {
   name: "Prensa",
@@ -95,5 +103,62 @@ describe("registros de peso", () => {
     await expect(
       addLog(id, { date: "2026-10-09", kg: 900, sets: 3, reps: 12, note: null }),
     ).rejects.toThrow();
+  });
+});
+
+describe("el peso del ejercicio es el último que has levantado", () => {
+  const log = (id: string, date: string, kg: number | null) =>
+    addLog(id, { date, kg, sets: 3, reps: 12, note: null });
+
+  it("se actualiza al registrar y vuelve al anterior si se quita el último", async () => {
+    const prensa = await createExercise({
+      name: "Prensa",
+      type: "maquina",
+      physioNotes: "",
+      sets: 3,
+      reps: 12,
+      durationSec: null,
+      targetKg: null,
+    });
+    await log(prensa, "2026-10-01", 20);
+    expect((await db.exercises.get(prensa))?.targetKg).toBe(20);
+    const last = await log(prensa, "2026-10-08", 25);
+    expect((await db.exercises.get(prensa))?.targetKg).toBe(25);
+
+    await deleteLog(last);
+    expect((await db.exercises.get(prensa))?.targetKg).toBe(20);
+    await restoreLogs([last]);
+    expect((await db.exercises.get(prensa))?.targetKg).toBe(25);
+    await unmarkDay(prensa, "2026-10-08");
+    expect((await db.exercises.get(prensa))?.targetKg).toBe(20);
+  });
+
+  it("no toca el peso corporal y pone al día los datos de antes al abrir la app", async () => {
+    const puente = await createExercise({
+      name: "Puente",
+      type: "peso_corporal",
+      physioNotes: "",
+      sets: 3,
+      reps: 12,
+      durationSec: null,
+      targetKg: null,
+    });
+    await log(puente, "2026-10-01", null);
+    expect((await db.exercises.get(puente))?.targetKg).toBeNull();
+
+    // Registro anterior a esta versión: el ejercicio aún tiene el peso de antes.
+    const remo = await createExercise({
+      name: "Remo",
+      type: "maquina",
+      physioNotes: "",
+      sets: 3,
+      reps: 12,
+      durationSec: null,
+      targetKg: 30,
+    });
+    await log(remo, "2026-10-01", 35);
+    await db.exercises.update(remo, { targetKg: 30 });
+    await syncAllLastKg();
+    expect((await db.exercises.get(remo))?.targetKg).toBe(35);
   });
 });

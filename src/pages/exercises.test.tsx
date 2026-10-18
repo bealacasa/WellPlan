@@ -33,7 +33,7 @@ describe("flujo de ejercicios", () => {
     await user.click(await screen.findByRole("link", { name: "+ Añadir ejercicio" }));
     await user.type(await screen.findByLabelText("Nombre"), "Prensa de piernas");
     await user.type(screen.getByLabelText("Indicaciones de la fisio"), "No bloquear rodillas");
-    const target = screen.getByLabelText("Peso objetivo (opcional)");
+    const target = screen.getByLabelText("Peso (se actualiza solo con el último que levantes)");
     await user.clear(target);
     await user.type(target, "20");
     await user.click(screen.getByRole("button", { name: "Guardar ejercicio" }));
