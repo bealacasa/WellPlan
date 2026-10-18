@@ -182,12 +182,17 @@ describe("vaciar los días que pasan", () => {
     }
   };
 
-  it("la primera vez solo anota desde cuándo y no quita nada", async () => {
-    const prensa = await exercise("Prensa");
-    await at("2026-10-05T10:00:00.000Z", () => addToDay(1, { exerciseId: prensa }));
-    expect(await clearPastDays(WEDNESDAY)).toBe(0);
-    expect(await getMeta("planCleanupFrom")).toBe("2026-10-14");
-    expect((await getWeekPlan())[1]).toHaveLength(1);
+  it("la primera vez vacía los días ya pasados de esta semana, no lo que queda", async () => {
+    const [prensa, remo] = [await exercise("Prensa"), await exercise("Remo")];
+    await at("2026-09-28T10:00:00.000Z", async () => {
+      await addToDay(1, { exerciseId: prensa }); // lunes 12: ya pasó esta semana → se quita
+      await addToDay(5, { exerciseId: remo }); // viernes 16: aún no ha llegado → se queda
+    });
+    expect(await clearPastDays(WEDNESDAY)).toBe(1);
+    expect(await getMeta("planCleanupFrom")).toBe("2026-10-12");
+    const week = await getWeekPlan();
+    expect(week[1]).toEqual([]);
+    expect(week[5]).toHaveLength(1);
   });
 
   it("quita lo de los días ya pasados, no lo de después ni lo añadido para la semana que viene", async () => {
