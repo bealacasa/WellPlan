@@ -34,8 +34,8 @@ describe("temporada de magia", () => {
   it("cambia los nombres y trae sus exclusivas; las de Halloween no salen si no se tienen", () => {
     const rewards = computeRewards({ ...none, trainedDays: 1, magiaRecords: 1 }, "magia");
     expect(rewards.find((r) => r.id === "dias-1")).toMatchObject({
-      emoji: "🪄",
-      title: "Primera varita",
+      emoji: "💡",
+      title: "¡Lumos!",
     });
     expect(rewards.find((r) => r.id === "magia-lechuza")?.earned).toBe(true);
     expect(rewards.find((r) => r.id === "magia-aprendiz")?.earned).toBe(false);

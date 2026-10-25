@@ -2,7 +2,8 @@
  * Temporadas con un toque especial en la interfaz (colores, decoración y nombres de las
  * recompensas). Cada una dura 15 días, cada año:
  *  · Halloween: del 25 de octubre al 8 de noviembre.
- *  · Magia (escuela de magia: varitas, lechuzas, pociones): del 9 al 23 de noviembre.
+ *  · Magia (escuela de magia, con hechizos de las novelas de magia más famosas como guiño
+ *    para las recompensas): del 9 al 23 de noviembre.
  */
 
 export type Season = "halloween" | "magia" | null;
