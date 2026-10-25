@@ -39,6 +39,24 @@
   }
 }
 
+/* Halloween (25 oct – 8 nov, ver src/lib/season.ts): naranja calabaza y morado. Mismo
+   contraste que los colores normales. */
+:root[data-season="halloween"] {
+  --accent: #c2410c;
+  --accent-2: #7e22ce;
+  --accent-contrast: #ffffff;
+  --accent-soft: #ffedd5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-season="halloween"] {
+    --accent: #fb923c;
+    --accent-2: #c084fc;
+    --accent-contrast: #1c0a00;
+    --accent-soft: #3b1a0a;
+  }
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);

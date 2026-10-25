@@ -162,3 +162,18 @@ describe("el peso del ejercicio es el último que has levantado", () => {
     expect((await db.exercises.get(remo))?.targetKg).toBe(35);
   });
 });
+
+describe("recompensas abiertas", () => {
+  it("se recuerdan en el dispositivo para no repetir la sorpresa", async () => {
+    const { markRewardsSeen, unopened } = await import("./rewards");
+    const { getMeta } = await import("../meta");
+    const rewards = [
+      { id: "a", emoji: "", title: "", description: "", hint: "", earned: true },
+      { id: "b", emoji: "", title: "", description: "", hint: "", earned: true },
+      { id: "c", emoji: "", title: "", description: "", hint: "", earned: false },
+    ];
+    await markRewardsSeen(["a"]);
+    const seen = new Set((await getMeta<string[]>("seenRewards")) ?? []);
+    expect(unopened(rewards, seen).map((r) => r.id)).toEqual(["b"]);
+  });
+});

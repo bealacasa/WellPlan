@@ -2,6 +2,7 @@ import { createContext, use, useEffect, useId, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { AddDoneButton } from "@/components/AddDoneButton";
 import { ExercisePhoto } from "@/components/ExercisePhoto";
+import { RewardGift } from "@/components/Rewards";
 import { SessionPhoto } from "@/components/SessionPhoto";
 import { TypeChip } from "@/components/typeStyle";
 import { Card, buttonPrimary } from "@/components/ui";
@@ -12,6 +13,7 @@ import type { PlanTarget } from "@/db/repositories/plan";
 import { deleteLog, quickLog, restoreLogs, unmarkDay } from "@/db/repositories/weightLogs";
 import type { Exercise, WeightLog } from "@/db/types";
 import { localDateKey, weekdayShort } from "@/lib/dates";
+import { seasonOn } from "@/lib/season";
 import { EXERCISE_TYPE_LABEL, isClass, logSummary, targetLabel } from "@/lib/labels";
 import { formatKg } from "@/lib/numbers";
 import { asksFeeling, needsReview, quickLogInput } from "@/lib/progression";
@@ -177,6 +179,7 @@ export function TodayPage() {
           onPick={(t, name) => void addDone(t, name)}
         />
       )}
+      {plan?.hasExercises && <TodayRewards today={now} />}
       {plan?.hasExercises && <ProgressLink today={now} />}
       {toast}
     </RowContext>
@@ -194,6 +197,13 @@ function RemoveFromToday({ onRemove }: { onRemove: () => void }) {
       Quitar de hoy
     </button>
   );
+}
+
+/** Regalo sorpresa si hay recompensas nuevas. */
+function TodayRewards({ today }: { today: Date }) {
+  const progress = useProgress(today);
+  if (!progress) return null;
+  return <RewardGift rewards={progress.rewards} season={seasonOn(today)} />;
 }
 
 /** Resumen de la semana con enlace a la pantalla de Progreso. */
@@ -497,10 +507,18 @@ function ExerciseRow({
 /** Cabecera destacada y compacta: progreso de hoy. */
 function Hero({ plan, total, done }: { plan: TodayPlan | undefined; total: number; done: number }) {
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+  const halloween = seasonOn(new Date()) === "halloween";
 
   return (
-    <header className="mb-5 overflow-hidden rounded-3xl bg-linear-to-br from-accent to-accent-2 px-5 py-4 text-accent-contrast shadow-lg shadow-accent/25">
+    <header className="relative mb-5 overflow-hidden rounded-3xl bg-linear-to-br from-accent to-accent-2 px-5 py-4 text-accent-contrast shadow-lg shadow-accent/25">
+      {halloween && (
+        // Decoración de temporada (solo visual).
+        <span aria-hidden="true" className="absolute right-4 top-3 text-4xl">
+          🎃<span className="ml-1 text-2xl">🦇</span>
+        </span>
+      )}
       <h1 className="text-3xl font-extrabold tracking-tight">Hoy</h1>
+      {halloween && <p className="text-sm font-bold opacity-90">Entrenamiento de miedo 👻</p>}
       {plan && (
         <div className="mt-2">
           {total === 0 ? (

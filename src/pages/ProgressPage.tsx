@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { RewardsCard } from "@/components/Rewards";
 import { TYPE_STYLE } from "@/components/typeStyle";
 import { Card, EmptyState, PageHeader, buttonSecondary } from "@/components/ui";
 import {
@@ -40,6 +41,7 @@ export function ProgressPage() {
           <WeeksChart progress={progress} />
           <GainsCard progress={progress} />
           <RecordsCard progress={progress} />
+          <RewardsCard rewards={progress.rewards} />
           <ClassesCard progress={progress} />
           <ExercisesCard progress={progress} />
         </div>

@@ -7,6 +7,8 @@ export type MetaKey =
   | "lastSyncAt"
   /** Desde qué día ("YYYY-MM-DD") se vacían del plan los días que pasan (ver clearPastDays). */
   | "planCleanupFrom"
+  /** Recompensas sorpresa ya abiertas (ids), para enseñar el regalo solo con las nuevas. */
+  | "seenRewards"
   /** Cuenta con la que se sincronizan los datos de este dispositivo. */
   | "syncUserId"
   /** Cursor de descarga por tabla remota (último server_updated_at visto). */

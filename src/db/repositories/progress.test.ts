@@ -112,6 +112,10 @@ describe("calendario y fuerza", () => {
     expect(p.firstDate).toBe("2026-09-02");
     expect(p.gains[0]).toMatchObject({ fromKg: 20, toKg: 25, percent: 25 });
     expect(p.records[0]).toMatchObject({ kg: 25, date: "2026-10-07", previousKg: 20 });
+    const earned = p.rewards.filter((r) => r.earned).map((r) => r.id);
+    expect(earned).toEqual(
+      expect.arrayContaining(["dias-1", "record-1", "subida-10", "subida-25"]),
+    );
   });
 });
 
