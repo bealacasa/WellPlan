@@ -4,12 +4,15 @@ import { RouterProvider } from "react-router/dom";
 import { router } from "./app/router";
 import { startPlanCleanup } from "./db/repositories/plan";
 import { syncAllLastKg } from "./db/repositories/weightLogs";
+import { applySeason } from "./lib/season";
 import { startSync } from "./sync/controller";
 import "./index.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("No se encontró #root");
 
+applySeason();
+document.addEventListener("visibilitychange", () => applySeason());
 startSync();
 startPlanCleanup();
 void syncAllLastKg().catch(() => undefined);

@@ -1,7 +1,9 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { addDays, localDateKey, startOfWeek } from "@/lib/dates";
+import { addDays, fromDateKey, localDateKey, startOfWeek } from "@/lib/dates";
 import { plannedOn } from "@/lib/planDays";
 import { buildReport, type Report } from "@/lib/report";
+import { computeRewards, type Reward } from "@/lib/rewards";
+import { seasonOn } from "@/lib/season";
 import {
   personalRecords,
   strengthGains,
@@ -46,6 +48,8 @@ export type Progress = {
   gains: StrengthGain[];
   /** Mejor marca de cada ejercicio con kilos, las más recientes primero. */
   records: PersonalRecord[];
+  /** Recompensas sorpresa (conseguidas y por conseguir). */
+  rewards: Reward[];
 };
 
 const WEEKS = 8;
@@ -116,6 +120,9 @@ export async function getProgress(today: Date): Promise<Progress> {
     .map(([id, name]) => ({ id, name }))
     .sort((a, b) => a.name.localeCompare(b.name, "es"));
 
+  const gains = strengthGains(exercises, aliveLogs, today);
+  const records = personalRecords(exercises, aliveLogs);
+
   return {
     week,
     trainedThisWeek,
@@ -128,8 +135,24 @@ export async function getProgress(today: Date): Promise<Progress> {
     trainedDates,
     isPlanned,
     firstDate: [...trainedDates].sort()[0] ?? null,
-    gains: strengthGains(exercises, aliveLogs, today),
-    records: personalRecords(exercises, aliveLogs),
+    gains,
+    records,
+    rewards: computeRewards(
+      {
+        trainedDays: trainedDates.size,
+        streak,
+        records: records.length,
+        bestGainPercent: Math.max(0, ...gains.map((g) => g.percent ?? 0)),
+        classDays: new Set(aliveLogs.filter((l) => classNames.has(l.exerciseId)).map((l) => l.date))
+          .size,
+        halloweenNights: [...trainedDates].filter((d) => d.endsWith("-10-31")).length,
+        halloweenDays: [...trainedDates].filter(
+          (d) =>
+            d.startsWith(String(today.getFullYear())) && seasonOn(fromDateKey(d)) === "halloween",
+        ).length,
+      },
+      seasonOn(today),
+    ),
   };
 }
 
