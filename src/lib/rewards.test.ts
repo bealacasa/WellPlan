@@ -10,6 +10,8 @@ const none: RewardStats = {
   classDays: 0,
   halloweenNights: 0,
   halloweenDays: 0,
+  magiaDays: 0,
+  magiaRecords: 0,
 };
 
 describe("temporada de Halloween", () => {
@@ -17,8 +19,27 @@ describe("temporada de Halloween", () => {
     expect(seasonOn(new Date(2026, 9, 24, 12))).toBeNull();
     expect(seasonOn(new Date(2026, 9, 25, 12))).toBe("halloween");
     expect(seasonOn(new Date(2026, 10, 8, 12))).toBe("halloween");
-    expect(seasonOn(new Date(2026, 10, 9, 12))).toBeNull();
+    expect(seasonOn(new Date(2026, 10, 9, 12))).toBe("magia");
     expect(isHalloweenNight(new Date(2026, 9, 31, 20))).toBe(true);
+  });
+});
+
+describe("temporada de magia", () => {
+  it("empieza al acabar Halloween y dura 15 días: del 9 al 23 de noviembre", () => {
+    expect(seasonOn(new Date(2026, 10, 9, 12))).toBe("magia");
+    expect(seasonOn(new Date(2026, 10, 23, 12))).toBe("magia");
+    expect(seasonOn(new Date(2026, 10, 24, 12))).toBeNull();
+  });
+
+  it("cambia los nombres y trae sus exclusivas; las de Halloween no salen si no se tienen", () => {
+    const rewards = computeRewards({ ...none, trainedDays: 1, magiaRecords: 1 }, "magia");
+    expect(rewards.find((r) => r.id === "dias-1")).toMatchObject({
+      emoji: "🪄",
+      title: "Primera varita",
+    });
+    expect(rewards.find((r) => r.id === "magia-lechuza")?.earned).toBe(true);
+    expect(rewards.find((r) => r.id === "magia-aprendiz")?.earned).toBe(false);
+    expect(rewards.some((r) => r.id.startsWith("halloween-"))).toBe(false);
   });
 });
 

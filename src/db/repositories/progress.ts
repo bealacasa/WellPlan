@@ -3,7 +3,7 @@ import { addDays, fromDateKey, localDateKey, startOfWeek } from "@/lib/dates";
 import { plannedOn } from "@/lib/planDays";
 import { buildReport, type Report } from "@/lib/report";
 import { computeRewards, type Reward } from "@/lib/rewards";
-import { seasonOn } from "@/lib/season";
+import { seasonOn, type Season } from "@/lib/season";
 import {
   personalRecords,
   strengthGains,
@@ -121,6 +121,11 @@ export async function getProgress(today: Date): Promise<Progress> {
     .sort((a, b) => a.name.localeCompare(b.name, "es"));
 
   const gains = strengthGains(exercises, aliveLogs, today);
+  /** Cuántas fechas ("YYYY-MM-DD") caen en esa temporada de este año. */
+  const inSeasonThisYear = (dates: string[], season: Season) =>
+    dates.filter(
+      (d) => d.startsWith(String(today.getFullYear())) && seasonOn(fromDateKey(d)) === season,
+    ).length;
   const records = personalRecords(exercises, aliveLogs);
 
   return {
@@ -146,10 +151,12 @@ export async function getProgress(today: Date): Promise<Progress> {
         classDays: new Set(aliveLogs.filter((l) => classNames.has(l.exerciseId)).map((l) => l.date))
           .size,
         halloweenNights: [...trainedDates].filter((d) => d.endsWith("-10-31")).length,
-        halloweenDays: [...trainedDates].filter(
-          (d) =>
-            d.startsWith(String(today.getFullYear())) && seasonOn(fromDateKey(d)) === "halloween",
-        ).length,
+        halloweenDays: inSeasonThisYear([...trainedDates], "halloween"),
+        magiaDays: inSeasonThisYear([...trainedDates], "magia"),
+        magiaRecords: inSeasonThisYear(
+          records.map((r) => r.date),
+          "magia",
+        ),
       },
       seasonOn(today),
     ),

@@ -21,6 +21,10 @@ export type RewardStats = {
   halloweenNights: number;
   /** Días entrenados durante la temporada de Halloween de este año. */
   halloweenDays: number;
+  /** Días entrenados durante la temporada de magia de este año. */
+  magiaDays: number;
+  /** Récords conseguidos durante la temporada de magia de este año. */
+  magiaRecords: number;
 };
 
 export type Reward = {
@@ -39,8 +43,8 @@ type Def = {
   id: string;
   emoji: string;
   title: string;
-  /** Versión de Halloween (emoji y nombre). */
-  spooky: [string, string];
+  /** Versión de cada temporada (emoji y nombre). */
+  themed: Partial<Record<Exclude<Season, null>, [string, string]>>;
   description: string;
   hint: string;
   earned: (s: RewardStats) => boolean;
@@ -52,7 +56,7 @@ const DEFS: Def[] = [
     id: "dias-1",
     emoji: "🌱",
     title: "Primer paso",
-    spooky: ["🕯️", "La primera vela"],
+    themed: { halloween: ["🕯️", "La primera vela"], magia: ["🪄", "Primera varita"] },
     description: "Tu primer día entrenado.",
     hint: "Empieza por algo.",
     earned: (s) => s.trainedDays >= 1,
@@ -61,7 +65,7 @@ const DEFS: Def[] = [
     id: "dias-5",
     emoji: "✋",
     title: "Cinco de cinco",
-    spooky: ["🕷️", "Cinco patas de araña"],
+    themed: { halloween: ["🕷️", "Cinco patas de araña"], magia: ["📜", "Pergamino de aprendiz"] },
     description: "5 días entrenados.",
     hint: "Unos cuantos días más…",
     earned: (s) => s.trainedDays >= 5,
@@ -70,7 +74,7 @@ const DEFS: Def[] = [
     id: "dias-10",
     emoji: "🔟",
     title: "Doble dígito",
-    spooky: ["🦇", "Murciélago constante"],
+    themed: { halloween: ["🦇", "Murciélago constante"], magia: ["🦉", "Lechuza fiel"] },
     description: "10 días entrenados.",
     hint: "Sigue sumando días.",
     earned: (s) => s.trainedDays >= 10,
@@ -79,7 +83,10 @@ const DEFS: Def[] = [
     id: "dias-25",
     emoji: "🏗️",
     title: "Hábito en obras",
-    spooky: ["🧟", "Imparable como un zombi"],
+    themed: {
+      halloween: ["🧟", "Imparable como un zombi"],
+      magia: ["📚", "Biblioteca de hechizos"],
+    },
     description: "25 días entrenados.",
     hint: "La constancia tiene premio.",
     earned: (s) => s.trainedDays >= 25,
@@ -88,7 +95,7 @@ const DEFS: Def[] = [
     id: "dias-50",
     emoji: "🏛️",
     title: "Medio centenar",
-    spooky: ["🏚️", "La casa encantada es tuya"],
+    themed: { halloween: ["🏚️", "La casa encantada es tuya"], magia: ["🏰", "Castillo propio"] },
     description: "50 días entrenados.",
     hint: "Muchos, muchos días.",
     earned: (s) => s.trainedDays >= 50,
@@ -97,7 +104,7 @@ const DEFS: Def[] = [
     id: "dias-100",
     emoji: "💯",
     title: "Cien días",
-    spooky: ["🧛", "Inmortal"],
+    themed: { halloween: ["🧛", "Inmortal"], magia: ["🧙", "Gran hechicería"] },
     description: "100 días entrenados.",
     hint: "Un número redondo y grande.",
     earned: (s) => s.trainedDays >= 100,
@@ -106,7 +113,7 @@ const DEFS: Def[] = [
     id: "racha-2",
     emoji: "🔥",
     title: "¡En llamas!",
-    spooky: ["🎃", "Calabaza encendida"],
+    themed: { halloween: ["🎃", "Calabaza encendida"], magia: ["✨", "Chispa mágica"] },
     description: "2 semanas seguidas cumpliendo el plan.",
     hint: "Cumple tu plan varias semanas seguidas.",
     earned: (s) => s.streak >= 2,
@@ -115,7 +122,7 @@ const DEFS: Def[] = [
     id: "racha-4",
     emoji: "📅",
     title: "Un mes en racha",
-    spooky: ["🌕", "Luna llena"],
+    themed: { halloween: ["🌕", "Luna llena"], magia: ["🌙", "Luna de constancia"] },
     description: "4 semanas seguidas cumpliendo el plan.",
     hint: "Más semanas seguidas…",
     earned: (s) => s.streak >= 4,
@@ -124,7 +131,7 @@ const DEFS: Def[] = [
     id: "racha-8",
     emoji: "⚡",
     title: "Imparable",
-    spooky: ["⚰️", "Ni el ataúd te para"],
+    themed: { halloween: ["⚰️", "Ni el ataúd te para"], magia: ["🐉", "Domadragones"] },
     description: "8 semanas seguidas cumpliendo el plan.",
     hint: "Una racha muy larga.",
     earned: (s) => s.streak >= 8,
@@ -133,7 +140,7 @@ const DEFS: Def[] = [
     id: "record-1",
     emoji: "🏅",
     title: "Primer récord",
-    spooky: ["💀", "Récord de ultratumba"],
+    themed: { halloween: ["💀", "Récord de ultratumba"], magia: ["🏆", "Copa de récords"] },
     description: "Levantaste más peso que nunca en un ejercicio.",
     hint: "Supera tu mejor peso.",
     earned: (s) => s.records >= 1,
@@ -142,7 +149,10 @@ const DEFS: Def[] = [
     id: "record-5",
     emoji: "🥇",
     title: "Coleccionista de récords",
-    spooky: ["🔮", "Bola de cristal: récords"],
+    themed: {
+      halloween: ["🔮", "Bola de cristal: récords"],
+      magia: ["💎", "Piedra de los récords"],
+    },
     description: "Récord en 5 ejercicios distintos.",
     hint: "Récords en varios ejercicios.",
     earned: (s) => s.records >= 5,
@@ -151,7 +161,7 @@ const DEFS: Def[] = [
     id: "subida-10",
     emoji: "📈",
     title: "Más fuerte",
-    spooky: ["🧪", "Pócima de fuerza"],
+    themed: { halloween: ["🧪", "Pócima de fuerza"], magia: ["🧪", "Poción vigorizante"] },
     description: "Subiste un 10 % de peso en un ejercicio.",
     hint: "Sube el peso poco a poco.",
     earned: (s) => s.bestGainPercent >= 10,
@@ -160,7 +170,7 @@ const DEFS: Def[] = [
     id: "subida-25",
     emoji: "💪",
     title: "Músculo nuevo",
-    spooky: ["🐺", "Fuerza de lobo"],
+    themed: { halloween: ["🐺", "Fuerza de lobo"], magia: ["🦄", "Fuerza de unicornio"] },
     description: "Subiste un 25 % de peso en un ejercicio.",
     hint: "Bastante más peso que al principio.",
     earned: (s) => s.bestGainPercent >= 25,
@@ -169,7 +179,7 @@ const DEFS: Def[] = [
     id: "subida-50",
     emoji: "🦾",
     title: "Brazo de hierro",
-    spooky: ["🧟‍♂️", "Frankenstein"],
+    themed: { halloween: ["🧟‍♂️", "Frankenstein"], magia: ["🔥", "Fénix renacido"] },
     description: "Subiste un 50 % de peso en un ejercicio.",
     hint: "Mucho, mucho más peso.",
     earned: (s) => s.bestGainPercent >= 50,
@@ -178,7 +188,7 @@ const DEFS: Def[] = [
     id: "clases-10",
     emoji: "🧘",
     title: "Fiel a la clase",
-    spooky: ["🧙", "Aquelarre"],
+    themed: { halloween: ["🧙", "Aquelarre"], magia: ["🧹", "Clase de vuelo"] },
     description: "10 clases hechas.",
     hint: "Ve a tus clases.",
     earned: (s) => s.classDays >= 10,
@@ -188,7 +198,7 @@ const DEFS: Def[] = [
     id: "halloween-noche",
     emoji: "🎃",
     title: "Truco o entreno",
-    spooky: ["🎃", "Truco o entreno"],
+    themed: { halloween: ["🎃", "Truco o entreno"] },
     description: "Entrenaste el 31 de octubre.",
     hint: "Solo en la noche más terrorífica…",
     earned: (s) => s.halloweenNights >= 1,
@@ -198,11 +208,32 @@ const DEFS: Def[] = [
     id: "halloween-semana",
     emoji: "👻",
     title: "Semana del terror",
-    spooky: ["👻", "Semana del terror"],
+    themed: { halloween: ["👻", "Semana del terror"] },
     description: "3 días entrenados en la temporada de Halloween.",
     hint: "Entrena varios días estas semanas de miedo.",
     earned: (s) => s.halloweenDays >= 3,
     season: "halloween",
+  },
+  // Exclusivas de la temporada de magia.
+  {
+    id: "magia-aprendiz",
+    emoji: "🧙",
+    title: "Aprendiz de magia",
+    themed: {},
+    description: "3 días entrenados en la temporada de magia.",
+    hint: "Practica tus hechizos varios días estas semanas.",
+    earned: (s) => s.magiaDays >= 3,
+    season: "magia",
+  },
+  {
+    id: "magia-lechuza",
+    emoji: "🦉",
+    title: "Lechuza mensajera",
+    themed: {},
+    description: "Un récord durante la temporada de magia.",
+    hint: "Una lechuza trae noticias cuando superas tu mejor marca…",
+    earned: (s) => s.magiaRecords >= 1,
+    season: "magia",
   },
 ];
 
@@ -214,7 +245,7 @@ export function computeRewards(stats: RewardStats, season: Season): Reward[] {
   return DEFS.flatMap((def): Reward[] => {
     const earned = def.earned(stats);
     if (def.season && def.season !== season && !earned) return [];
-    const [emoji, title] = season === "halloween" ? def.spooky : [def.emoji, def.title];
+    const [emoji, title] = (season && def.themed[season]) || [def.emoji, def.title];
     return [
       {
         id: def.id,

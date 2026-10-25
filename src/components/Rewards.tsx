@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, buttonPrimary } from "@/components/ui";
 import { markRewardsSeen, unopened, useSeenRewards } from "@/db/repositories/rewards";
 import type { Reward } from "@/lib/rewards";
-import type { Season } from "@/lib/season";
+import { SEASON_DECOR, type Season } from "@/lib/season";
 
 /**
  * Regalo sorpresa en Hoy: si has conseguido recompensas nuevas, una caja que se abre al
@@ -13,7 +13,7 @@ export function RewardGift({ rewards, season }: { rewards: Reward[]; season: Sea
   const [opened, setOpened] = useState<Reward[] | null>(null);
   if (!seen) return null;
   const fresh = unopened(rewards, seen);
-  const box = season === "halloween" ? "🎃" : "🎁";
+  const box = season ? SEASON_DECOR[season].gift : "🎁";
 
   if (opened) {
     return (
