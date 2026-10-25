@@ -10,7 +10,7 @@ import { Card, PageHeader, buttonPrimary, inputClass } from "@/components/ui";
 import { useExercise } from "@/db/repositories/exercises";
 import { addLog, deleteLog, useLogs } from "@/db/repositories/weightLogs";
 import type { Exercise, WeightLog } from "@/db/types";
-import { localDateKey } from "@/lib/dates";
+import { fromDateKey, localDateKey, weekdayLabel } from "@/lib/dates";
 import { backLabel, safeReturnPath } from "@/lib/navigation";
 import { hadDiscomfort, suggestNextKg, worseningFeeling } from "@/lib/progression";
 import { bestKg, personalRecords } from "@/lib/strength";
@@ -51,8 +51,14 @@ function ExerciseView({ mode }: { mode: "info" | "log" }) {
   const [dialog, confirm] = useConfirm();
   const [saved, setSaved] = useState<string | null>(null);
   // Abierto desde otra pantalla (p. ej. Progreso, ?volver=/progreso): «←» vuelve allí.
-  const back =
-    safeReturnPath(useSearchParams()[0].get("volver")) ?? (mode === "log" ? "/" : "/ejercicios");
+  const [params] = useSearchParams();
+  const back = safeReturnPath(params.get("volver")) ?? (mode === "log" ? "/" : "/ejercicios");
+  // Registrar un día pasado (?fecha=2026-10-20, desde Progreso). Nunca en el futuro.
+  const rawDate = params.get("fecha");
+  const logDate =
+    rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) && rawDate <= localDateKey(new Date())
+      ? rawDate
+      : null;
 
   // La confirmación flota sobre la barra de pestañas y se oculta sola.
   useEffect(() => {
@@ -137,6 +143,7 @@ function ExerciseView({ mode }: { mode: "info" | "log" }) {
           suggestion={suggestNextKg(exercise, logs)}
           best={bestKg(logs)}
           worsening={worseningFeeling(logs)}
+          date={logDate}
           onSaved={setSaved}
         />
       )}
@@ -207,6 +214,8 @@ type QuickLogProps = {
   best: number | null;
   /** Sensación de las tres últimas veces si va a peor (de la más antigua a la última). */
   worsening: number[] | null;
+  /** Día pasado en el que se registra ("YYYY-MM-DD"); null = hoy. */
+  date: string | null;
   onSaved: (message: string) => void;
 };
 
@@ -214,7 +223,11 @@ type QuickLogProps = {
 function QuickLog(props: QuickLogProps) {
   return (
     <Card>
-      <h2 className="text-lg font-semibold">Registrar hoy</h2>
+      <h2 className="text-lg font-semibold">
+        {props.date && props.date !== localDateKey(new Date())
+          ? `Registrar el ${weekdayLabel(fromDateKey(props.date)).toLowerCase()}`
+          : "Registrar hoy"}
+      </h2>
       {props.worsening && (
         <p role="note" className="mt-2 rounded-2xl bg-danger/15 p-3 font-semibold text-danger">
           Tu sensación va a peor ({props.worsening.join(" → ")}). Coméntalo con tu fisio.
@@ -267,7 +280,7 @@ function useSave(onSaved: QuickLogProps["onSaved"]) {
 }
 
 /** Fuerza, estiramientos y clases: kilos ±2,5, series y repeticiones. */
-function StrengthForm({ exercise, last, suggestion, best, onSaved }: QuickLogProps) {
+function StrengthForm({ exercise, last, suggestion, best, date, onSaved }: QuickLogProps) {
   const withKg = usesKg(exercise.type);
   const initialKg = last?.kg ?? exercise.targetKg;
   const [kg, setKg] = useState(initialKg !== null ? formatKg(initialKg) : "");
@@ -290,7 +303,7 @@ function StrengthForm({ exercise, last, suggestion, best, onSaved }: QuickLogPro
     }
     void run(async () => {
       await addLog(exercise.id, {
-        date: localDateKey(new Date()),
+        date: date ?? localDateKey(new Date()),
         kg: value,
         sets,
         reps: exercise.durationSec ? null : reps,
@@ -381,7 +394,7 @@ function StrengthForm({ exercise, last, suggestion, best, onSaved }: QuickLogPro
 }
 
 /** Cardio: distancia (±0,5 km), tiempo, ritmo calculado y esfuerzo percibido 1–10. */
-function CardioForm({ exercise, last, onSaved }: QuickLogProps) {
+function CardioForm({ exercise, last, date, onSaved }: QuickLogProps) {
   const initialKm = last?.distanceKm ?? exercise.targetDistanceKm;
   const initialSec = last?.durationSec ?? exercise.durationSec ?? 0;
   const [km, setKm] = useState(initialKm !== null ? formatKg(initialKm) : "");
@@ -407,7 +420,7 @@ function CardioForm({ exercise, last, onSaved }: QuickLogProps) {
     }
     void run(async () => {
       await addLog(exercise.id, {
-        date: localDateKey(new Date()),
+        date: date ?? localDateKey(new Date()),
         kg: null,
         sets: 1,
         reps: null,

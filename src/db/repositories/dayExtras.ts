@@ -65,11 +65,22 @@ export type DoneExtra = {
  * En una sesión, cada uno de sus ejercicios; lo ya registrado ese día no se repite.
  */
 export async function addDoneExtra(date: string, target: PlanTarget): Promise<DoneExtra> {
-  const exercises = await exercisesOf(target);
   const extraId = await addExtra(date, target);
+  return { extraId, ...(await logDoneOn(date, target)) };
+}
+
+/**
+ * Apunta como hecho, en esa fecha (hoy o un día pasado), un ejercicio o una sesión que ya
+ * existen, igual que la última vez. En una sesión, cada uno de sus ejercicios; lo ya
+ * registrado ese día no se repite. No toca el plan.
+ */
+export async function logDoneOn(
+  date: string,
+  target: PlanTarget,
+): Promise<{ logIds: string[]; pending: Exercise[] }> {
   const logIds: string[] = [];
   const pending: Exercise[] = [];
-  for (const exercise of exercises) {
+  for (const exercise of await exercisesOf(target)) {
     const already = (
       await db.weightLogs.where("[exerciseId+date]").equals([exercise.id, date]).toArray()
     ).some(isAlive);
@@ -78,7 +89,7 @@ export async function addDoneExtra(date: string, target: PlanTarget): Promise<Do
     if (logId) logIds.push(logId);
     else pending.push(exercise);
   }
-  return { extraId, logIds, pending };
+  return { logIds, pending };
 }
 
 /**
