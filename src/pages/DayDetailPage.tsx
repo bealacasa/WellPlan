@@ -1,10 +1,17 @@
-import { Link, useParams } from "react-router";
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router";
+import { AddDoneButton } from "@/components/AddDoneButton";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { TypeChip } from "@/components/typeStyle";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
+import { logDoneOn } from "@/db/repositories/dayExtras";
+import { useExercises } from "@/db/repositories/exercises";
+import type { PlanTarget } from "@/db/repositories/plan";
 import { useDayDetail } from "@/db/repositories/progress";
+import { useSessions } from "@/db/repositories/sessions";
+import type { Exercise } from "@/db/types";
 import { deleteLog } from "@/db/repositories/weightLogs";
-import { fromDateKey, weekdayLabel } from "@/lib/dates";
+import { fromDateKey, localDateKey, weekdayLabel } from "@/lib/dates";
 import { EXERCISE_TYPE_LABEL, feelingSummary, logSummary } from "@/lib/labels";
 
 /** Qué hiciste un día concreto (/progreso/dia/2026-10-15): sesiones, clases y ejercicios. */
@@ -12,8 +19,27 @@ export function DayDetailPage() {
   const { date = "" } = useParams();
   const valid = /^\d{4}-\d{2}-\d{2}$/.test(date);
   const detail = useDayDetail(valid ? date : "0000-00-00");
+  const exercises = useExercises();
+  const sessions = useSessions();
   const [dialog, confirm] = useConfirm();
+  const navigate = useNavigate();
+  // Lo que no se pudo apuntar de un toque (sin kilos, cardio…): enlaces para registrarlo.
+  const [pending, setPending] = useState<Exercise[]>([]);
   if (!detail) return null;
+  // Solo hoy y días pasados: no se apunta nada en el futuro.
+  const canAdd = valid && date <= localDateKey(new Date());
+  const here = `/progreso/dia/${date}`;
+  const logLink = (id: string) => `/hoy/${id}?fecha=${date}&volver=${encodeURIComponent(here)}`;
+
+  /** Apuntar en este día algo que hiciste (un ejercicio o una sesión que ya existen). */
+  async function addDone(target: PlanTarget) {
+    const result = await logDoneOn(date, target);
+    if ("exerciseId" in target && result.pending.length > 0) {
+      navigate(logLink(target.exerciseId));
+      return;
+    }
+    setPending(result.pending);
+  }
 
   async function remove(id: string, name: string) {
     const ok = await confirm({
@@ -36,6 +62,34 @@ export function DayDetailPage() {
         title={valid ? weekdayLabel(fromDateKey(date)) : "Día no válido"}
         subtitle="Lo que hiciste ese día."
       />
+      {canAdd && exercises && sessions && (
+        <div className="mb-4">
+          <AddDoneButton
+            label="Apuntar algo hecho este día"
+            ariaLabel="Apuntar algo hecho este día"
+            sessions={sessions.map((x) => ({ id: x.id, name: x.name }))}
+            exercises={exercises.map((x) => ({ id: x.id, name: x.name }))}
+            onPick={(target) => void addDone(target)}
+          />
+          {pending.length > 0 && (
+            <div role="status" className="mt-3 rounded-2xl bg-accent-soft p-4">
+              <p className="font-semibold">Falta apuntar los datos de:</p>
+              <ul className="mt-2 space-y-2">
+                {pending.map((e) => (
+                  <li key={e.id}>
+                    <Link
+                      to={logLink(e.id)}
+                      className="flex min-h-12 items-center justify-between rounded-xl bg-surface px-4 font-bold"
+                    >
+                      {e.name} <span aria-hidden="true">›</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
       {detail.logs.length === 0 ? (
         <EmptyState title="Ese día no registraste nada" />
       ) : (

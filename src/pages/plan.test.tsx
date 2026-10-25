@@ -395,6 +395,51 @@ describe("informe para el fisio", () => {
   });
 });
 
+describe("apuntar en un día pasado desde Progreso", () => {
+  it("un ejercicio con kilos se apunta en ese día; el cardio abre su registro con esa fecha", async () => {
+    const { addLog } = await import("@/db/repositories/weightLogs");
+    const { createExercise } = await import("@/db/repositories/exercises");
+    const { addDays, localDateKey } = await import("@/lib/dates");
+    const day = localDateKey(addDays(new Date(), -3));
+    const remo = await exercise("Remo");
+    await addLog(remo, { date: "2026-01-05", kg: 25, sets: 3, reps: 12, note: null });
+    const correr = await createExercise({
+      name: "Correr",
+      type: "cardio",
+      physioNotes: "",
+      sets: 1,
+      reps: null,
+      durationSec: null,
+      targetKg: null,
+    });
+    const user = userEvent.setup();
+    render(
+      <RouterProvider
+        router={createMemoryRouter(router.routes, { initialEntries: [`/progreso/dia/${day}`] })}
+      />,
+    );
+    const select = await screen.findByLabelText("Apuntar algo hecho este día");
+    await user.selectOptions(select, `e:${remo}`);
+    expect(await screen.findByText("Remo", { ignore: "option, script, style" })).toBeTruthy();
+    const onDay = (await db.weightLogs.toArray()).filter((l) => l.date === day);
+    expect(onDay[0]).toMatchObject({ exerciseId: remo, kg: 25 });
+
+    await user.selectOptions(screen.getByLabelText("Apuntar algo hecho este día"), `e:${correr}`);
+    expect(await screen.findByRole("heading", { name: /^Registrar el / })).toBeTruthy();
+    await user.type(screen.getByLabelText(/Distancia/), "4");
+    await user.click(screen.getByRole("button", { name: /Guardar/ }));
+    await vi.waitFor(async () =>
+      expect(
+        (await db.weightLogs.toArray()).some((l) => l.exerciseId === correr && l.date === day),
+      ).toBe(true),
+    );
+    // «←» vuelve al día de Progreso.
+    expect(screen.getByRole("link", { name: "← Progreso" }).getAttribute("href")).toContain(
+      `/progreso/dia/${day}`,
+    );
+  });
+});
+
 describe("volver a Progreso", () => {
   it("al abrir un ejercicio desde Progreso, «←» vuelve a Progreso", async () => {
     const { addLog } = await import("@/db/repositories/weightLogs");
@@ -502,7 +547,7 @@ describe("corregir el progreso", () => {
 
     await memory.navigate(`/progreso/dia/${today}`);
     expect(await screen.findByText("Clases y ejercicios")).toBeTruthy();
-    expect(screen.getByText("Pilates")).toBeTruthy();
+    expect(screen.getByText("Pilates", { ignore: "option, script, style" })).toBeTruthy();
   });
 
   it("desde una sesión se edita un ejercicio y se vuelve a la sesión", async () => {
