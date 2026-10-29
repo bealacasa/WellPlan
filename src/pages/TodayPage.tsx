@@ -7,7 +7,13 @@ import { SessionPhoto } from "@/components/SessionPhoto";
 import { TypeChip } from "@/components/typeStyle";
 import { Card, buttonPrimary } from "@/components/ui";
 import { streakLabel, useProgress, weekSummary } from "@/db/repositories/progress";
-import { addDoneExtra, removeDoneExtra, restoreDoneExtra } from "@/db/repositories/dayExtras";
+import {
+  addDoneExtra,
+  addExtra,
+  removeDoneExtra,
+  removeExtra,
+  restoreDoneExtra,
+} from "@/db/repositories/dayExtras";
 import { useTodayPlan, type TodayItem, type TodayPlan } from "@/db/repositories/today";
 import type { PlanTarget } from "@/db/repositories/plan";
 import { deleteLog, quickLog, restoreLogs, unmarkDay } from "@/db/repositories/weightLogs";
@@ -77,15 +83,34 @@ export function TodayPage() {
                 undo: () => void deleteLog(logId),
               }),
           ),
-        onUnmark: (exercise) =>
-          void unmarkDay(exercise.id, localDateKey(new Date())).then((ids) =>
-            showToast({
-              text: `${exercise.name} desmarcado`,
-              undo: () => void restoreLogs(ids),
-            }),
-          ),
+        onUnmark: (exercise) => void unmark(exercise),
       }
     : null;
+
+  /**
+   * Desmarcar un ejercicio. Si era de algo añadido hoy (no estaba en el plan) y ya no queda
+   * nada suyo marcado, también se quita de Hoy: desmarcar es la forma de quitarlo.
+   */
+  async function unmark(exercise: Exercise) {
+    const date = localDateKey(new Date());
+    const ids = await unmarkDay(exercise.id, date);
+    const stillDone = new Set(plan?.done);
+    stillDone.delete(exercise.id);
+    const emptied = (plan?.items ?? []).filter(
+      (item) =>
+        item.extra &&
+        item.exercises.some((e) => e.id === exercise.id) &&
+        !item.exercises.some((e) => stillDone.has(e.id)),
+    );
+    for (const item of emptied) await removeExtra(item.entryId);
+    showToast({
+      text: emptied.length > 0 ? `${exercise.name} quitado de hoy` : `${exercise.name} desmarcado`,
+      undo: () =>
+        void restoreLogs(ids).then(() =>
+          Promise.all(emptied.map((item) => addExtra(date, targetOf(item)))),
+        ),
+    });
+  }
 
   const navigate = useNavigate();
 
@@ -111,7 +136,10 @@ export function TodayPage() {
     showToast({ text: `${name} registrado`, undo });
   }
 
-  /** Quitar de hoy algo añadido: también se desmarca lo hecho (con opción de deshacer). */
+  /**
+   * Quitar de hoy algo añadido que no tiene nada marcado (p. ej. un cardio cuyo registro no se
+   * llegó a guardar). Lo marcado se quita desmarcándolo.
+   */
   async function removeDone(item: TodayItem) {
     const date = localDateKey(new Date());
     const elsewhere = new Set(
@@ -121,11 +149,9 @@ export function TodayPage() {
     );
     const ids = item.exercises.map((e) => e.id).filter((id) => !elsewhere.has(id));
     const logIds = await removeDoneExtra(item.entryId, date, ids);
-    const target: PlanTarget =
-      item.kind === "session" ? { sessionId: item.targetId } : { exerciseId: item.targetId };
     showToast({
       text: `${item.title} quitado de hoy`,
-      undo: () => void restoreDoneExtra(date, target, logIds),
+      undo: () => void restoreDoneExtra(date, targetOf(item), logIds),
     });
   }
 
@@ -150,7 +176,11 @@ export function TodayPage() {
                 done={plan.done}
                 open={openIds.has(item.entryId)}
                 onToggle={() => toggle(item.entryId)}
-                onRemove={item.extra ? () => void removeDone(item) : undefined}
+                onRemove={
+                  item.extra && !item.exercises.some((e) => plan.done.has(e.id))
+                    ? () => void removeDone(item)
+                    : undefined
+                }
               />
             ) : (
               <Card key={item.entryId}>
@@ -164,7 +194,9 @@ export function TodayPage() {
                   </p>
                 )}
                 <ExerciseList title={item.title} exercises={item.exercises} done={plan.done} />
-                {item.extra && <RemoveFromToday onRemove={() => void removeDone(item)} />}
+                {item.extra && !item.exercises.some((e) => plan.done.has(e.id)) && (
+                  <RemoveFromToday onRemove={() => void removeDone(item)} />
+                )}
               </Card>
             ),
           )}
@@ -186,18 +218,23 @@ export function TodayPage() {
   );
 }
 
-/** Quitar algo añadido hoy: se desmarca lo hecho (el plan semanal no cambia). */
+/** Enlace discreto para quitar de hoy algo añadido que aún no tiene nada marcado. */
 function RemoveFromToday({ onRemove }: { onRemove: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onRemove}
-      className="mt-3 min-h-11 w-full rounded-xl font-semibold text-muted underline"
-    >
-      Quitar de hoy
-    </button>
+    <div className="mt-2 text-right">
+      <button
+        type="button"
+        onClick={onRemove}
+        className="min-h-11 px-2 text-sm font-medium text-muted underline"
+      >
+        Quitar
+      </button>
+    </div>
   );
 }
+
+const targetOf = (item: TodayItem): PlanTarget =>
+  item.kind === "session" ? { sessionId: item.targetId } : { exerciseId: item.targetId };
 
 /** Regalo sorpresa si hay recompensas nuevas. */
 function TodayRewards({ today }: { today: Date }) {

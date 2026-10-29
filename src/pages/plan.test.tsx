@@ -489,12 +489,41 @@ describe("algo hecho que no estaba en el plan", () => {
     const logs = (await db.weightLogs.toArray()).filter((l) => l.deletedAt === null);
     expect(logs.map((l) => l.exerciseId)).toEqual([puente]);
 
-    // La tarjeta queda abierta con Prensa pendiente; «Quitar de hoy» desmarca lo hecho.
-    await user.click(await screen.findByRole("button", { name: "Quitar de hoy" }));
+    // Con algo marcado no hay botón de quitar: se quita desmarcando.
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Quitar" })).toBeNull());
+    await user.click(await screen.findByRole("button", { name: "Hecho hoy. Desmarcar Puente" }));
     await vi.waitFor(async () =>
       expect((await db.dayExtras.toArray())[0]?.deletedAt).not.toBeNull(),
     );
     expect((await db.weightLogs.toArray()).every((l) => l.deletedAt !== null)).toBe(true);
+    expect(await screen.findByText("✓ Puente quitado de hoy")).toBeTruthy();
+
+    // «Deshacer» lo devuelve a Hoy con lo que estaba marcado.
+    await user.click(screen.getByRole("button", { name: "Deshacer" }));
+    // Lo último que hace «Deshacer» es volver a añadirlo a Hoy.
+    await vi.waitFor(async () =>
+      expect((await db.dayExtras.toArray()).some((e) => e.deletedAt === null)).toBe(true),
+    );
+    expect((await db.weightLogs.toArray()).some((l) => l.deletedAt === null)).toBe(true);
+    // La sesión vuelve (cerrada) con 1 de 2 hechos.
+    await vi.waitFor(() =>
+      expect(screen.getByRole("button", { name: /Glúteo/ }).textContent).toContain("1/2"),
+    );
+  });
+
+  it("algo añadido sin nada marcado se puede quitar con «Quitar»", async () => {
+    const { addExtra } = await import("@/db/repositories/dayExtras");
+    const { localDateKey } = await import("@/lib/dates");
+    const prensa = await exercise("Prensa");
+    await addExtra(localDateKey(new Date()), { exerciseId: prensa });
+    const user = userEvent.setup();
+    render(
+      <RouterProvider router={createMemoryRouter(router.routes, { initialEntries: ["/"] })} />,
+    );
+    await user.click(await screen.findByRole("button", { name: "Quitar" }));
+    await vi.waitFor(async () =>
+      expect((await db.dayExtras.toArray())[0]?.deletedAt).not.toBeNull(),
+    );
   });
 
   it("un ejercicio con kilos se apunta igual que la última vez", async () => {
